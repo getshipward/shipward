@@ -1,22 +1,22 @@
-# The Shipward GitHub Action: builds cra from this repository's source (at the ref you pin), then makes the SBOM,
+# The Shipward GitHub Action: builds shipward from this repository's source (at the ref you pin), then makes the SBOM,
 # lists missing BSI fields, scans for known vulnerabilities and exports the VEX decisions, all inside your job. The
 # results go into the job summary and a workflow artifact; nothing goes to us.
 #
 #   - uses: actions/checkout@...
 #   - run: dotnet restore --locked-mode            # NuGet: hashes and creators come from the restored packages
-#   - uses: getshipward/shipward@<commit>          # cra.yaml in the repository root
+#   - uses: getshipward/shipward@<commit>          # shipward.yaml in the repository root
 #
-# It changes the job's Go version (setup-go) to the one cra is built with.
-name: Shipward cra
+# It changes the job's Go version (setup-go) to the one shipward is built with.
+name: Shipward
 description: SBOM, SBOM field check, local vulnerability scan and VEX export, to help prepare for the EU Cyber Resilience Act.
 
 inputs:
   working-directory:
-    description: Folder with cra.yaml.
+    description: Folder with shipward.yaml.
     default: "."
   config:
-    description: Path to cra.yaml, relative to working-directory.
-    default: cra.yaml
+    description: Path to shipward.yaml, relative to working-directory.
+    default: shipward.yaml
   version:
     description: Product version in the SBOM. Default the tag name on a tag push, else the commit (first 12 characters).
     default: ""
@@ -43,9 +43,9 @@ inputs:
     default: "true"
   upload-name:
     description: Name of the workflow artifact.
-    default: cra
+    default: shipward
   upload-path:
-    description: Folder to upload, relative to working-directory (where cra.yaml sends the SBOM).
+    description: Folder to upload, relative to working-directory (where shipward.yaml sends the SBOM).
     default: sbom
 
 outputs:
@@ -55,9 +55,9 @@ outputs:
   exploited:
     description: Of those, the ones known to be exploited (CISA KEV or ENISA EUVD).
     value: ${{ steps.scan.outputs.exploited }}
-  cra:
-    description: Path to the cra binary the action built, for more cra commands in later steps (for example one SBOM per installer).
-    value: ${{ steps.build.outputs.cra }}
+  shipward:
+    description: Path to the shipward binary the action built, for more shipward commands in later steps (for example one SBOM per installer).
+    value: ${{ steps.build.outputs.shipward }}
 
 runs:
   using: composite
@@ -67,15 +67,15 @@ runs:
         go-version-file: ${{ github.action_path }}/go.mod
         cache-dependency-path: ${{ github.action_path }}/go.sum
 
-    - name: Build cra
+    - name: Build shipward
       id: build
       shell: bash
       env:
-        CRA_REF: ${{ github.action_ref }}
+        SHIPWARD_REF: ${{ github.action_ref }}
       run: |
-        go -C "$GITHUB_ACTION_PATH" build -trimpath -ldflags "-s -w -X main.version=${CRA_REF:-dev}" -o "$RUNNER_TEMP/cra" ./cmd/cra
-        "$RUNNER_TEMP/cra" version
-        echo "cra=$RUNNER_TEMP/cra" >> "$GITHUB_OUTPUT"
+        go -C "$GITHUB_ACTION_PATH" build -trimpath -ldflags "-s -w -X main.version=${SHIPWARD_REF:-dev}" -o "$RUNNER_TEMP/shipward" ./cmd/shipward
+        "$RUNNER_TEMP/shipward" version
+        echo "shipward=$RUNNER_TEMP/shipward" >> "$GITHUB_OUTPUT"
 
     - name: SBOM
       shell: bash
@@ -92,7 +92,7 @@ runs:
         args=(--config "$CONFIG" --version "$VERSION")
         [ -n "$ARTIFACT" ] && args+=(--artifact "$ARTIFACT")
         [ -n "$ARTIFACT_URL" ] && args+=(--artifact-url "$ARTIFACT_URL")
-        "$RUNNER_TEMP/cra" sbom "${args[@]}"
+        "$RUNNER_TEMP/shipward" sbom "${args[@]}"
 
     - name: SBOM fields
       if: inputs.check == 'true'
@@ -100,7 +100,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         CONFIG: ${{ inputs.config }}
-      run: '"$RUNNER_TEMP/cra" check sbom --config "$CONFIG" --summary "$GITHUB_STEP_SUMMARY" || true'
+      run: '"$RUNNER_TEMP/shipward" check sbom --config "$CONFIG" --summary "$GITHUB_STEP_SUMMARY" || true'
 
     - name: Vulnerability scan
       id: scan
@@ -112,17 +112,17 @@ runs:
         FAIL_ON: ${{ inputs.fail-on }}
       run: |
         code=0
-        "$RUNNER_TEMP/cra" scan --config "$CONFIG" --format json --summary "$GITHUB_STEP_SUMMARY" --fail-on "$FAIL_ON" \
-          > "$RUNNER_TEMP/cra-scan.json" || code=$?
-        if [ -s "$RUNNER_TEMP/cra-scan.json" ]; then
-          open=$(jq '[.findings[] | select(.state != "not_affected" and .state != "fixed")] | length' "$RUNNER_TEMP/cra-scan.json")
-          exploited=$(jq '[.findings[] | select(.state != "not_affected" and .state != "fixed") | select(.kev or .euvd)] | length' "$RUNNER_TEMP/cra-scan.json")
+        "$RUNNER_TEMP/shipward" scan --config "$CONFIG" --format json --summary "$GITHUB_STEP_SUMMARY" --fail-on "$FAIL_ON" \
+          > "$RUNNER_TEMP/shipward-scan.json" || code=$?
+        if [ -s "$RUNNER_TEMP/shipward-scan.json" ]; then
+          open=$(jq '[.findings[] | select(.state != "not_affected" and .state != "fixed")] | length' "$RUNNER_TEMP/shipward-scan.json")
+          exploited=$(jq '[.findings[] | select(.state != "not_affected" and .state != "fixed") | select(.kev or .euvd)] | length' "$RUNNER_TEMP/shipward-scan.json")
           echo "open=$open" >> "$GITHUB_OUTPUT"
           echo "exploited=$exploited" >> "$GITHUB_OUTPUT"
           echo "Advisories without a final decision: $open (known to be exploited: $exploited)"
         fi
         if [ "$code" = 3 ]; then
-          echo "::error::cra scan: advisories match fail-on: $FAIL_ON (see the job summary; record decisions with cra triage)"
+          echo "::error::shipward scan: advisories match fail-on: $FAIL_ON (see the job summary; record decisions with shipward triage)"
         fi
         exit "$code"
 
@@ -133,8 +133,8 @@ runs:
       env:
         CONFIG: ${{ inputs.config }}
       run: |
-        vex=$("$RUNNER_TEMP/cra" triage export --config "$CONFIG" -o - 2>/dev/null | jq '.statements | length') || vex=""
-        if [ -n "$vex" ] && [ "$vex" != 0 ]; then "$RUNNER_TEMP/cra" triage export --config "$CONFIG"; else echo "No decisions to export."; fi
+        vex=$("$RUNNER_TEMP/shipward" triage export --config "$CONFIG" -o - 2>/dev/null | jq '.statements | length') || vex=""
+        if [ -n "$vex" ] && [ "$vex" != 0 ]; then "$RUNNER_TEMP/shipward" triage export --config "$CONFIG"; else echo "No decisions to export."; fi
 
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       if: inputs.upload == 'true' && !cancelled()

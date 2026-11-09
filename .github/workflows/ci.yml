@@ -62,7 +62,7 @@ jobs:
             exit 1
           fi
 
-  # The GitHub Action (action.yml) on this repository itself: cra's own SBOM, the field check and the scan, as users
+  # The GitHub Action (action.yml) on this repository itself: shipward's own SBOM, the field check and the scan, as users
   # run it. Not a required check: it needs the snapshot at data.shipward.dev.
   action:
     needs: [test]
@@ -72,13 +72,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - id: cra
+      - id: shipward
         uses: ./
         with:
-          upload-name: cra-self
+          upload-name: shipward-self
       - name: Outputs
         env:
-          OPEN: ${{ steps.cra.outputs.open }}
+          OPEN: ${{ steps.shipward.outputs.open }}
         run: '[ -n "$OPEN" ] && echo "open advisories: $OPEN"'
 
   # On a pull request the image is only built, so that a broken base image or Dockerfile fails before the merge:

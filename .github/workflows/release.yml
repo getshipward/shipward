@@ -1,5 +1,5 @@
-# A release of cra: push a tag vX.Y.Z (semantic version). This builds cra for Linux, macOS and Windows, makes the SBOM
-# of cra itself (with cra), writes SHA256SUMS and signs it with cosign, keyless: the signature is tied to this
+# A release of shipward: push a tag vX.Y.Z (semantic version). This builds shipward for Linux, macOS and Windows, makes the SBOM
+# of shipward itself (with shipward), writes SHA256SUMS and signs it with cosign, keyless: the signature is tied to this
 # workflow on this tag through GitHub's OIDC token, and is recorded in Sigstore's public transparency log (Rekor),
 # which names this repository, the workflow and the tag. Verify:
 #
@@ -51,15 +51,15 @@ jobs:
             os=${target%/*} arch=${target#*/} ext=""
             [ "$os" = windows ] && ext=.exe
             GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$GITHUB_REF_NAME" \
-              -o "dist/cra_${GITHUB_REF_NAME#v}_${os}_${arch}${ext}" ./cmd/cra
+              -o "dist/shipward_${GITHUB_REF_NAME#v}_${os}_${arch}${ext}" ./cmd/shipward
           done
           ls -l dist
 
-      - name: SBOM of cra
+      - name: SBOM of shipward
         run: |
-          go build -o "$RUNNER_TEMP/cra" ./cmd/cra
-          "$RUNNER_TEMP/cra" sbom --version "${GITHUB_REF_NAME#v}" -o "dist/cra_${GITHUB_REF_NAME#v}.cdx.json"
-          "$RUNNER_TEMP/cra" check sbom "dist/cra_${GITHUB_REF_NAME#v}.cdx.json" --summary "$GITHUB_STEP_SUMMARY" || true
+          go build -o "$RUNNER_TEMP/shipward" ./cmd/shipward
+          "$RUNNER_TEMP/shipward" sbom --version "${GITHUB_REF_NAME#v}" -o "dist/shipward_${GITHUB_REF_NAME#v}.cdx.json"
+          "$RUNNER_TEMP/shipward" check sbom "dist/shipward_${GITHUB_REF_NAME#v}.cdx.json" --summary "$GITHUB_STEP_SUMMARY" || true
 
       - name: Checksums and signature
         working-directory: dist
@@ -71,5 +71,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --title "cra $GITHUB_REF_NAME" --verify-tag \
-            --notes "Signed checksums: SHA256SUMS and SHA256SUMS.sigstore.json (verify with cosign, see .github/workflows/release.yml). SBOM: cra_${GITHUB_REF_NAME#v}.cdx.json."
+          gh release create "$GITHUB_REF_NAME" dist/* --title "shipward $GITHUB_REF_NAME" --verify-tag \
+            --notes "Signed checksums: SHA256SUMS and SHA256SUMS.sigstore.json (verify with cosign, see .github/workflows/release.yml). SBOM: shipward_${GITHUB_REF_NAME#v}.cdx.json."

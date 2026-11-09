@@ -8,7 +8,7 @@ maker's own repository.
 
 ## Use
 
-Put a `cra.yaml` in the product's repository:
+Put a `shipward.yaml` in the product's repository:
 
 ```yaml
 product:
@@ -46,13 +46,13 @@ components:
     # download: <URL of the file you used>, filename: <its name>, hashes: {sha512: <its SHA-512>}
 ```
 
-Drafts of the CRA documents, from what `cra.yaml` knows (the rest is marked TODO):
+Drafts of the CRA documents, from what `shipward.yaml` knows (the rest is marked TODO):
 
 ```sh
-cra init --product "Example Game" --manufacturer "Example Studio" --email security@example.com   # no cra.yaml yet: writes one too
-cra init                      # SECURITY.md, cra/security.txt, cra/user-information.md (Annex II),
-                              # cra/declaration-of-conformity.md (Annex V, unsigned), cra/technical-documentation.md (Annex VII)
-cra init --only security.txt --force   # renew one draft
+shipward init --product "Example Game" --manufacturer "Example Studio" --email security@example.com   # no shipward.yaml yet: writes one too
+shipward init                      # SECURITY.md, cra/security.txt, cra/user-information.md (Annex II),
+                                   # cra/declaration-of-conformity.md (Annex V, unsigned), cra/technical-documentation.md (Annex VII)
+shipward init --only security.txt --force   # renew one draft
 ```
 
 It never overwrites a file without `--force`, and prints the number of TODOs per file. The settings it uses:
@@ -63,15 +63,15 @@ It never overwrites a file without `--force`, and prints the number of TODOs per
 Then, per release:
 
 ```sh
-cra sbom --version 1.2.3      # writes sbom/sbom.cdx.json (CycloneDX 1.6)
-cra sbom --version 1.2.3 --artifact build/game.exe --artifact-url https://example.com/game.exe
-                              # adds the delivered file's name and SHA-512
-cra sbom -o -                 # or print it
-cra check sbom                # list fields missing for BSI TR-03183-2 v2.1.0 (exit 1 if a required one is missing)
-cra check sbom --all file.json
+shipward sbom --version 1.2.3      # writes sbom/sbom.cdx.json (CycloneDX 1.6)
+shipward sbom --version 1.2.3 --artifact build/game.exe --artifact-url https://example.com/game.exe
+                                   # adds the delivered file's name and SHA-512
+shipward sbom -o -                 # or print it
+shipward check sbom                # list fields missing for BSI TR-03183-2 v2.1.0 (exit 1 if a required one is missing)
+shipward check sbom --all file.json
 ```
 
-`cra sbom` fills only what local files state as facts. It looks nothing up online.
+`shipward sbom` fills only what local files state as facts. It looks nothing up online.
 
 - Every component gets a dependencies entry, plus a completeness statement "unknown" (a scan cannot prove it found
   everything).
@@ -94,12 +94,12 @@ online lookup, which will be opt-in.
 When you learn of an actively exploited vulnerability or a severe incident in your product:
 
 ```sh
-cra report new vulnerability --title "Exploited flaw in login" --aware "2026-11-06 14:00" --advisory CVE-2026-1234
-cra report                         # every open case: the next report, its deadline, the time left
-cra report done CASE early-warning # after you submitted it on ENISA's single reporting platform
-cra report fixed CASE              # a fix or mitigation is available: the final report is due 14 days later
-cra report drafts CASE --force     # write the drafts again after you changed report.yaml
-cra report --fail-on overdue       # exit 3 when a report is overdue (for a scheduled CI job)
+shipward report new vulnerability --title "Exploited flaw in login" --aware "2026-11-06 14:00" --advisory CVE-2026-1234
+shipward report                         # every open case: the next report, its deadline, the time left
+shipward report done CASE early-warning # after you submitted it on ENISA's single reporting platform
+shipward report fixed CASE              # a fix or mitigation is available: the final report is due 14 days later
+shipward report drafts CASE --force     # write the drafts again after you changed report.yaml
+shipward report --fail-on overdue       # exit 3 when a report is overdue (for a scheduled CI job)
 ```
 
 Each case is a folder in `cra/reports/` (`reports.dir`): `report.yaml` with the facts and times, and drafts of the
@@ -114,8 +114,8 @@ the owner only.
 ### Licences
 
 ```sh
-cra licences                  # list components without a confirmed licence
-cra licences --write          # add an entry per component with one declared licence to licences.yaml
+shipward licences                  # list components without a confirmed licence
+shipward licences --write          # add an entry per component with one declared licence to licences.yaml
 ```
 
 Check every entry `--write` adds before you commit `licences.yaml`: by committing it, you confirm the licences. An
@@ -127,7 +127,7 @@ entry without `@version` applies to every version while the declared licence sta
   concluded: MIT
 ```
 
-Run `cra sbom` again afterwards.
+Run `shipward sbom` again afterwards.
 
 Scan a clean checkout (as CI does), not a folder with old build output: local build folders add packages the product
 no longer ships.
@@ -139,16 +139,16 @@ and commit the lock files. Without them the SBOM has no NuGet packages.
 ### Scan
 
 ```sh
-cra scan                      # match sbom/sbom.cdx.json against the daily vulnerability snapshot
-cra scan --format json file.json
-cra scan --offline            # no requests: the cached snapshot and feeds only
+shipward scan                      # match sbom/sbom.cdx.json against the daily vulnerability snapshot
+shipward scan --format json file.json
+shipward scan --offline            # no requests: the cached snapshot and feeds only
 ```
 
-`cra scan` downloads a signed snapshot of public vulnerability data from `https://data.shipward.dev/v1/` (only the
+`shipward scan` downloads a signed snapshot of public vulnerability data from `https://data.shipward.dev/v1/` (only the
 ecosystems in the SBOM, cached in `~/.cache/shipward`), checks its Ed25519 signature and SHA-256s, and matches on this
 machine. It sends no package names anywhere. It also fetches ENISA's exploited list and FIRST's EPSS scores from
 those sources (cached 20 hours): their terms do not clearly let us pass them on. An advisory that names a version
-does not prove the product is affected; `cra triage` (next) records that decision.
+does not prove the product is affected; `shipward triage` (next) records that decision.
 
 ### Decisions (VEX)
 
@@ -156,35 +156,35 @@ An advisory that names a component version may not affect the product: the vulne
 that decision, so the next scan shows it and others can read it:
 
 ```sh
-cra triage                    # advisories without a final decision, with a ready cra triage set line each
-cra triage set GHSA-5crp-9r3c-p9vr pkg:nuget/Newtonsoft.Json@12.0.1 --status not_affected \
+shipward triage                    # advisories without a final decision, with a ready shipward triage set line each
+shipward triage set GHSA-5crp-9r3c-p9vr pkg:nuget/Newtonsoft.Json@12.0.1 --status not_affected \
   --justification vulnerable_code_not_in_execute_path --impact "We never parse untrusted JSON." --by alex
-cra triage set CVE-2021-26701 pkg:nuget/System.Text.Encodings.Web@4.5.0 --status affected \
+shipward triage set CVE-2021-26701 pkg:nuget/System.Text.Encodings.Web@4.5.0 --status affected \
   --action "Update to 1.0.1." --by alex
-cra triage export             # writes sbom/vex.openvex.json (OpenVEX 0.2.0) for users and scanners
+shipward triage export             # writes sbom/vex.openvex.json (OpenVEX 0.2.0) for users and scanners
 ```
 
 Decisions live in `vex.yaml` (commit it; comments are kept). Statuses and justifications are OpenVEX's:
 `not_affected` (needs `--justification` or `--impact`), `affected` (needs `--action`), `fixed`,
 `under_investigation`. A decision can name the advisory by any of its IDs (GHSA or CVE); `--all-versions` applies it
-to every version of the component. `cra triage` also lists decisions that no advisory needs any more.
+to every version of the component. `shipward triage` also lists decisions that no advisory needs any more.
 
 ### In CI
 
 ```sh
-cra scan --summary "$GITHUB_STEP_SUMMARY"      # a Markdown table in the job summary
-cra scan --format json > scan.json
-cra scan --fail-on exploited                   # exit 3 when an undecided advisory is known to be exploited
-cra scan --fail-on open                        # exit 3 when any advisory has no final decision
+shipward scan --summary "$GITHUB_STEP_SUMMARY"      # a Markdown table in the job summary
+shipward scan --format json > scan.json
+shipward scan --fail-on exploited                   # exit 3 when an undecided advisory is known to be exploited
+shipward scan --fail-on open                        # exit 3 when any advisory has no final decision
 ```
 
-`--fail-on` is off by default: `cra` reports, the maker decides what stops a release.
+`--fail-on` is off by default: `shipward` reports, the maker decides what stops a release.
 
 ### GitHub Action
 
 ```yaml
 jobs:
-  cra:
+  shipward:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@<sha>
@@ -194,15 +194,15 @@ jobs:
           fail-on: none                          # or open, exploited
 ```
 
-It builds `cra` from this repository at the pinned ref, then runs `cra sbom`,
-`cra check sbom`, `cra scan` and `cra triage export`. Results: the job summary, the outputs `open` and `exploited`,
+It builds `shipward` from this repository at the pinned ref, then runs `shipward sbom`,
+`shipward check sbom`, `shipward scan` and `shipward triage export`. Results: the job summary, the outputs `open` and `exploited`,
 and a workflow artifact (`sbom/` by default). Inputs: `action.yml`.
 
 ### Releases
 
-Push a tag `vX.Y.Z`. `.github/workflows/release.yml` builds `cra` for Linux, macOS and Windows (amd64, arm64), makes
-cra's own SBOM, writes `SHA256SUMS` and signs it with cosign (keyless, Sigstore). The workflow file says how to
-verify. cra's own decisions about advisories in its dependencies are in `vex.yaml`.
+Push a tag `vX.Y.Z`. `.github/workflows/release.yml` builds `shipward` for Linux, macOS and Windows (amd64, arm64), makes
+shipward's own SBOM, writes `SHA256SUMS` and signs it with cosign (keyless, Sigstore). The workflow file says how to
+verify. shipward's own decisions about advisories in its dependencies are in `vex.yaml`.
 
 The snapshot is built once a day by `cra-snapshot` (image `ghcr.io/getshipward/cra-snapshot`). Sources and terms:
 [`docs/data-sources.md`](docs/data-sources.md).
@@ -211,10 +211,10 @@ The snapshot is built once a day by `cra-snapshot` (image `ghcr.io/getshipward/c
 
 ```sh
 go test ./...
-go run ./cmd/cra version
+go run ./cmd/shipward version
 ```
 
-`cra` bundles [Syft](https://github.com/anchore/syft) (Apache-2.0) as a library: see `NOTICE`. CI accepts the
+`shipward` bundles [Syft](https://github.com/anchore/syft) (Apache-2.0) as a library: see `NOTICE`. CI accepts the
 vulnerabilities listed in `.govulncheck-allow`, each with its reason (package-level scan: the full call-graph scan needs
 5–7 GB).
 

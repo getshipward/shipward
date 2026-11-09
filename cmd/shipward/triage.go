@@ -19,9 +19,9 @@ import (
 )
 
 const triageUsage = `usage:
-  cra triage [list] [flags] [sbom]          advisories without a final decision, and decisions no advisory needs
-  cra triage set ID PURL --status S [flags] record a decision in vex.yaml
-  cra triage export [-o file] [flags] [sbom] write vex.yaml as OpenVEX (default sbom/vex.openvex.json)
+  shipward triage [list] [flags] [sbom]          advisories without a final decision, and decisions no advisory needs
+  shipward triage set ID PURL --status S [flags] record a decision in vex.yaml
+  shipward triage export [-o file] [flags] [sbom] write vex.yaml as OpenVEX (default sbom/vex.openvex.json)
 
 statuses: not_affected (needs --justification or --impact), affected (needs --action), fixed, under_investigation
 justifications: ` + "component_not_present, vulnerable_code_not_present, vulnerable_code_not_in_execute_path,\n  vulnerable_code_cannot_be_controlled_by_adversary, inline_mitigations_already_exist\n"
@@ -56,7 +56,7 @@ func triageList(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	}
 	rep, cfg, err := sf.run(ctx, fs.Arg(0))
 	if err != nil {
-		fmt.Fprintf(stderr, "cra triage: %v\n", err)
+		fmt.Fprintf(stderr, "shipward triage: %v\n", err)
 		return 1
 	}
 	vexPath := "vex.yaml"
@@ -72,12 +72,12 @@ func triageList(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		n++
 		fmt.Fprintf(stdout, "%s  %s  %s\n", f.Component, f.ID, f.Summary)
 		fmt.Fprintf(stdout, "    %s\n    now: %s\n", strings.Join(facts(f), "; "), decisionText(f))
-		fmt.Fprintf(stdout, "    cra triage set %s %s --status not_affected --justification ... --impact \"...\"\n\n", f.ID, plainPURL(f.PURL, true))
+		fmt.Fprintf(stdout, "    shipward triage set %s %s --status not_affected --justification ... --impact \"...\"\n\n", f.ID, plainPURL(f.PURL, true))
 	}
 	if n == 0 {
 		fmt.Fprintln(stdout, "No advisory needs a decision.")
 	} else {
-		fmt.Fprintf(stdout, "Advisories that need a decision or work: %d. Decide each one (see cra triage help), then commit %s.\n", n, vexPath)
+		fmt.Fprintf(stdout, "Advisories that need a decision or work: %d. Decide each one (see shipward triage help), then commit %s.\n", n, vexPath)
 	}
 	if len(rep.Unused) > 0 {
 		fmt.Fprintf(stdout, "\nThese decisions in %s match no advisory of this SBOM (the component was updated or removed). Remove them when you no longer need them:\n", vexPath)
@@ -105,9 +105,9 @@ func plainPURL(s string, withVersion bool) string {
 func triageSet(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("triage set", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	cfgPath := fs.String("config", config.DefaultFile, "path to cra.yaml")
+	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml")
 	status := fs.String("status", "", "not_affected, affected, fixed or under_investigation")
-	justification := fs.String("justification", "", "why it is not_affected (see cra triage help)")
+	justification := fs.String("justification", "", "why it is not_affected (see shipward triage help)")
 	impact := fs.String("impact", "", "not_affected: how the product avoids it, in your words")
 	action := fs.String("action", "", "affected: what users should do")
 	by := fs.String("by", "", "who decided")
@@ -123,7 +123,7 @@ func triageSet(args []string, stdout, stderr io.Writer) int {
 	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra triage set: %v\n", err)
+		fmt.Fprintf(stderr, "shipward triage set: %v\n", err)
 		return 1
 	}
 	component := plainPURL(pos[1], !*allVersions)
@@ -131,11 +131,11 @@ func triageSet(args []string, stdout, stderr io.Writer) int {
 		Impact: *impact, Action: *action, By: *by, Date: *date}
 	path := cfg.Resolve(cfg.VEX.Path)
 	if _, err := vex.Load(path); err != nil {
-		fmt.Fprintf(stderr, "cra triage set: fix %s first: %v\n", path, err)
+		fmt.Fprintf(stderr, "shipward triage set: fix %s first: %v\n", path, err)
 		return 1
 	}
 	if err := vex.Set(path, s); err != nil {
-		fmt.Fprintf(stderr, "cra triage set: %v\n", err)
+		fmt.Fprintf(stderr, "shipward triage set: %v\n", err)
 		return 1
 	}
 	fmt.Fprintf(stdout, "recorded %s for %s on %s in %s\n", s.Status, s.ID, s.Component, path)
@@ -145,15 +145,15 @@ func triageSet(args []string, stdout, stderr io.Writer) int {
 func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("triage export", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	cfgPath := fs.String("config", config.DefaultFile, "path to cra.yaml")
-	out := fs.String("o", "", `output file, or "-" for stdout (default vex.output in cra.yaml)`)
+	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml")
+	out := fs.String("o", "", `output file, or "-" for stdout (default vex.output in shipward.yaml)`)
 	offline := fs.Bool("offline", true, "use the cached snapshot for the advisories' aliases (false: fetch a new one)")
 	if err := parse(fs, args); err != nil {
 		return 2
 	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra triage export: %v\n", err)
+		fmt.Fprintf(stderr, "shipward triage export: %v\n", err)
 		return 1
 	}
 	sbomPath := fs.Arg(0)
@@ -162,12 +162,12 @@ func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) 
 	}
 	bom, err := readBOM(sbomPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra triage export: %v\n", err)
+		fmt.Fprintf(stderr, "shipward triage export: %v\n", err)
 		return 1
 	}
 	decisions, err := vex.Load(cfg.Resolve(cfg.VEX.Path))
 	if err != nil {
-		fmt.Fprintf(stderr, "cra triage export: %v\n", err)
+		fmt.Fprintf(stderr, "shipward triage export: %v\n", err)
 		return 1
 	}
 
@@ -185,7 +185,7 @@ func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) 
 			}
 		}
 	} else {
-		fmt.Fprintf(stderr, "cra triage export: no aliases (%v)\n", err)
+		fmt.Fprintf(stderr, "shipward triage export: no aliases (%v)\n", err)
 	}
 
 	var targets []string
@@ -198,9 +198,9 @@ func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) 
 	if cfg.Manufacturer.Email != "" {
 		author += " <" + cfg.Manufacturer.Email + ">"
 	}
-	doc, err := vex.Export(author, "cra "+version, productIRI(bom, cfg), decisions, targets, aliases)
+	doc, err := vex.Export(author, "shipward "+version, productIRI(bom, cfg), decisions, targets, aliases)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra triage export: %v\n", err)
+		fmt.Fprintf(stderr, "shipward triage export: %v\n", err)
 		return 1
 	}
 	write := func(w io.Writer) error {
@@ -215,13 +215,13 @@ func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) 
 	}
 	if target == "-" {
 		if err := write(stdout); err != nil {
-			fmt.Fprintf(stderr, "cra triage export: %v\n", err)
+			fmt.Fprintf(stderr, "shipward triage export: %v\n", err)
 			return 1
 		}
 		return 0
 	}
 	if err := writeFile(target, write); err != nil {
-		fmt.Fprintf(stderr, "cra triage export: %v\n", err)
+		fmt.Fprintf(stderr, "shipward triage export: %v\n", err)
 		return 1
 	}
 	fmt.Fprintf(stdout, "wrote %s (%d statements)\n", target, len(doc.Statements))

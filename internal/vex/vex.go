@@ -37,8 +37,8 @@ var Justifications = []string{
 }
 
 // Header is written at the top of a new vex.yaml.
-const Header = `# Decisions about advisories that name a component of this product (VEX). cra scan shows them next to each
-# advisory; cra triage export writes them as OpenVEX. Add or change entries with cra triage set, or by hand.
+const Header = `# Decisions about advisories that name a component of this product (VEX). shipward scan shows them next to each
+# advisory; shipward triage export writes them as OpenVEX. Add or change entries with shipward triage set, or by hand.
 # status: not_affected (needs justification or impact), affected (needs action), fixed, under_investigation.
 # component: a purl with @version, or without it for every version.
 `

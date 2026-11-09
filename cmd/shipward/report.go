@@ -14,12 +14,12 @@ import (
 )
 
 const reportUsage = `usage:
-  cra report [--fail-on overdue]                     open cases: the next report, its deadline, the time left
-  cra report new vulnerability|incident --title T --aware TIME [--advisory ID] [--component PURL] [--version V]
+  shipward report [--fail-on overdue]                     open cases: the next report, its deadline, the time left
+  shipward report new vulnerability|incident --title T --aware TIME [--advisory ID] [--component PURL] [--version V]
                                                      open a case and write the drafts
-  cra report fixed CASE [--at TIME]                  a corrective or mitigating measure is available (starts the 14 days)
-  cra report done CASE STAGE [--at TIME]             STAGE was submitted: early-warning, notification, final, users
-  cra report drafts CASE [--force]                   write the drafts again from report.yaml
+  shipward report fixed CASE [--at TIME]                  a corrective or mitigating measure is available (starts the 14 days)
+  shipward report done CASE STAGE [--at TIME]             STAGE was submitted: early-warning, notification, final, users
+  shipward report drafts CASE [--force]                   write the drafts again from report.yaml
 
 TIME is RFC 3339 (2026-11-06T14:00:00+01:00) or "2026-11-06 14:00" in local time; default now.
 Reports go to your CSIRT coordinator through ENISA's single reporting platform; a person submits them there.
@@ -52,14 +52,14 @@ func runReport(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stdout, reportUsage)
 		return 0
 	}
-	fmt.Fprintf(stderr, "cra report: unknown command %q\n\n%s", sub, reportUsage)
+	fmt.Fprintf(stderr, "shipward report: unknown command %q\n\n%s", sub, reportUsage)
 	return 2
 }
 
 func reportList(args []string, stdout, stderr io.Writer, now time.Time) int {
 	fs := flag.NewFlagSet("report", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	cfgPath := fs.String("config", config.DefaultFile, "path to cra.yaml")
+	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml")
 	failOn := fs.String("fail-on", "none", "exit 3 when a report is overdue (overdue) or never (none)")
 	all := fs.Bool("all", false, "also list closed cases")
 	if err := parse(fs, args); err != nil {
@@ -67,20 +67,20 @@ func reportList(args []string, stdout, stderr io.Writer, now time.Time) int {
 	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra report: %v\n", err)
+		fmt.Fprintf(stderr, "shipward report: %v\n", err)
 		return 1
 	}
 	dir := cfg.Resolve(cfg.Reports.Dir)
 	ids, err := report.List(dir)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra report: %v\n", err)
+		fmt.Fprintf(stderr, "shipward report: %v\n", err)
 		return 1
 	}
 	overdue, shown := false, 0
 	for _, id := range ids {
 		c, err := report.Load(filepath.Join(dir, id))
 		if err != nil {
-			fmt.Fprintf(stderr, "cra report: %v\n", err)
+			fmt.Fprintf(stderr, "shipward report: %v\n", err)
 			return 1
 		}
 		if _, open := c.Next(); !open && !*all {
@@ -98,7 +98,7 @@ func reportList(args []string, stdout, stderr io.Writer, now time.Time) int {
 		fmt.Fprintln(stdout)
 	}
 	if shown == 0 {
-		fmt.Fprintln(stdout, "No open cases. Open one with cra report new when you learn of an actively exploited vulnerability or a severe incident.")
+		fmt.Fprintln(stdout, "No open cases. Open one with shipward report new when you learn of an actively exploited vulnerability or a severe incident.")
 	}
 	if overdue && *failOn == "overdue" {
 		return exitFindings
@@ -111,7 +111,7 @@ func stageStatus(d report.Deadline, c *report.Case, id string, now time.Time) st
 	case !d.Done.IsZero():
 		return "sent " + report.When(d.Done, time.Local)
 	case d.Due.IsZero() && d.Stage == report.Final && c.Type == report.Vulnerability:
-		return "due 14 days after a fix is available (cra report fixed " + id + ")"
+		return "due 14 days after a fix is available (shipward report fixed " + id + ")"
 	case d.Due.IsZero() && d.Stage == report.Final:
 		return "due one month after the notification is submitted"
 	case d.Due.IsZero():
@@ -145,7 +145,7 @@ func reportNew(args []string, stdout, stderr io.Writer, now time.Time) int {
 	kind := args[0]
 	fs := flag.NewFlagSet("report new", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	cfgPath := fs.String("config", config.DefaultFile, "path to cra.yaml")
+	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml")
 	title := fs.String("title", "", "a short title")
 	aware := fs.String("aware", "", "when you became aware of it (default now)")
 	malicious := fs.String("malicious", "unknown", "incident: suspected unlawful or malicious acts: yes, no, unknown")
@@ -157,22 +157,22 @@ func reportNew(args []string, stdout, stderr io.Writer, now time.Time) int {
 		return 2
 	}
 	if *title == "" {
-		fmt.Fprintln(stderr, "cra report new: --title is required")
+		fmt.Fprintln(stderr, "shipward report new: --title is required")
 		return 2
 	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra report new: %v\n", err)
+		fmt.Fprintf(stderr, "shipward report new: %v\n", err)
 		return 1
 	}
 	at := now.Truncate(time.Second)
 	if *aware != "" {
 		if at, err = report.ParseTime(*aware, time.Local); err != nil {
-			fmt.Fprintf(stderr, "cra report new: %v\n", err)
+			fmt.Fprintf(stderr, "shipward report new: %v\n", err)
 			return 2
 		}
 		if at.After(now.Add(time.Minute)) {
-			fmt.Fprintln(stderr, "cra report new: --aware is in the future")
+			fmt.Fprintln(stderr, "shipward report new: --aware is in the future")
 			return 2
 		}
 	}
@@ -184,22 +184,22 @@ func reportNew(args []string, stdout, stderr io.Writer, now time.Time) int {
 	id := report.Slug(at, *title)
 	dir := filepath.Join(cfg.Resolve(cfg.Reports.Dir), id)
 	if _, err := os.Stat(dir); err == nil {
-		fmt.Fprintf(stderr, "cra report new: %s exists already\n", dir)
+		fmt.Fprintf(stderr, "shipward report new: %s exists already\n", dir)
 		return 1
 	}
 	if err := report.Save(dir, c); err != nil {
-		fmt.Fprintf(stderr, "cra report new: %v\n", err)
+		fmt.Fprintf(stderr, "shipward report new: %v\n", err)
 		return 1
 	}
-	if _, err := report.WriteDrafts(dir, id, c, cfg, false, time.Local, "cra "+version); err != nil {
-		fmt.Fprintf(stderr, "cra report new: %v\n", err)
+	if _, err := report.WriteDrafts(dir, id, c, cfg, false, time.Local, "shipward "+version); err != nil {
+		fmt.Fprintf(stderr, "shipward report new: %v\n", err)
 		return 1
 	}
 	fmt.Fprintf(stdout, "opened %s (%s)\n\n", id, dir)
 	for _, d := range c.Deadlines() {
 		fmt.Fprintf(stdout, "    %-14s %s\n", d.Stage, stageStatus(d, c, id, now))
 	}
-	fmt.Fprintf(stdout, "\nStart with %s. Fill in report.yaml as you learn more, then cra report drafts %s --force.\n",
+	fmt.Fprintf(stdout, "\nStart with %s. Fill in report.yaml as you learn more, then shipward report drafts %s --force.\n",
 		filepath.Join(dir, report.DraftFile(report.EarlyWarning)), id)
 	fmt.Fprintln(stdout, "These files describe something that may not be public yet: keep them out of public repositories.")
 	return 0
@@ -208,7 +208,7 @@ func reportNew(args []string, stdout, stderr io.Writer, now time.Time) int {
 func reportMark(kind string, args []string, stdout, stderr io.Writer, now time.Time) int {
 	fs := flag.NewFlagSet("report "+kind, flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	cfgPath := fs.String("config", config.DefaultFile, "path to cra.yaml")
+	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml")
 	atFlag := fs.String("at", "", "when (default now)")
 	if err := parse(fs, args); err != nil {
 		return 2
@@ -223,13 +223,13 @@ func reportMark(kind string, args []string, stdout, stderr io.Writer, now time.T
 	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra report %s: %v\n", kind, err)
+		fmt.Fprintf(stderr, "shipward report %s: %v\n", kind, err)
 		return 1
 	}
 	at := now.Truncate(time.Second)
 	if *atFlag != "" {
 		if at, err = report.ParseTime(*atFlag, time.Local); err != nil {
-			fmt.Fprintf(stderr, "cra report %s: %v\n", kind, err)
+			fmt.Fprintf(stderr, "shipward report %s: %v\n", kind, err)
 			return 2
 		}
 	}
@@ -237,7 +237,7 @@ func reportMark(kind string, args []string, stdout, stderr io.Writer, now time.T
 	dir := filepath.Join(cfg.Resolve(cfg.Reports.Dir), id)
 	c, err := report.Load(dir)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra report %s: %v\n", kind, err)
+		fmt.Fprintf(stderr, "shipward report %s: %v\n", kind, err)
 		return 1
 	}
 	if kind == "fixed" {
@@ -245,7 +245,7 @@ func reportMark(kind string, args []string, stdout, stderr io.Writer, now time.T
 	} else {
 		stage := fs.Arg(1)
 		if report.DraftFile(stage) == "" {
-			fmt.Fprintf(stderr, "cra report done: unknown stage %q (%s)\n", stage, strings.Join(report.Stages, ", "))
+			fmt.Fprintf(stderr, "shipward report done: unknown stage %q (%s)\n", stage, strings.Join(report.Stages, ", "))
 			return 2
 		}
 		if c.Submitted == nil {
@@ -254,12 +254,12 @@ func reportMark(kind string, args []string, stdout, stderr io.Writer, now time.T
 		c.Submitted[stage] = at
 	}
 	if err := report.Save(dir, c); err != nil {
-		fmt.Fprintf(stderr, "cra report %s: %v\n", kind, err)
+		fmt.Fprintf(stderr, "shipward report %s: %v\n", kind, err)
 		return 1
 	}
 	if next, open := c.Next(); open {
 		fmt.Fprintf(stdout, "recorded. Next: %s, %s\n", next.Stage, stageStatus(next, c, id, now))
-		fmt.Fprintf(stdout, "The drafts show the old dates until you run cra report drafts %s --force (it overwrites edits).\n", id)
+		fmt.Fprintf(stdout, "The drafts show the old dates until you run shipward report drafts %s --force (it overwrites edits).\n", id)
 	} else {
 		fmt.Fprintln(stdout, "recorded. Every stage of this case is done.")
 	}
@@ -269,7 +269,7 @@ func reportMark(kind string, args []string, stdout, stderr io.Writer, now time.T
 func reportDrafts(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("report drafts", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	cfgPath := fs.String("config", config.DefaultFile, "path to cra.yaml")
+	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml")
 	force := fs.Bool("force", false, "overwrite drafts that exist")
 	if err := parse(fs, args); err != nil {
 		return 2
@@ -280,19 +280,19 @@ func reportDrafts(args []string, stdout, stderr io.Writer) int {
 	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra report drafts: %v\n", err)
+		fmt.Fprintf(stderr, "shipward report drafts: %v\n", err)
 		return 1
 	}
 	id := fs.Arg(0)
 	dir := filepath.Join(cfg.Resolve(cfg.Reports.Dir), id)
 	c, err := report.Load(dir)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra report drafts: %v\n", err)
+		fmt.Fprintf(stderr, "shipward report drafts: %v\n", err)
 		return 1
 	}
-	written, err := report.WriteDrafts(dir, id, c, cfg, *force, time.Local, "cra "+version)
+	written, err := report.WriteDrafts(dir, id, c, cfg, *force, time.Local, "shipward "+version)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra report drafts: %v\n", err)
+		fmt.Fprintf(stderr, "shipward report drafts: %v\n", err)
 		return 1
 	}
 	if len(written) == 0 {

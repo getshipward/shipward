@@ -7,7 +7,7 @@ ten years after the product is placed on the market, or for the support period i
 
 ## 1. General description
 
-- **Intended purpose**: {{ or .Product.Purpose "TODO: the intended purpose (`product.purpose` in cra.yaml)." }}
+- **Intended purpose**: {{ or .Product.Purpose "TODO: the intended purpose (`product.purpose` in shipward.yaml)." }}
 - **Versions**: TODO: the software versions that affect conformity with the essential requirements.
 - **Information for users**: [user-information.md](user-information.md).
 
@@ -17,14 +17,14 @@ a. **Design and development**: TODO: the system architecture: how the software c
    each other, and how they fit into the overall processing.
 
 b. **Vulnerability handling**:
-   - Software bill of materials: `{{ .SBOM }}`, made by `cra sbom` for every release.
+   - Software bill of materials: `{{ .SBOM }}`, made by `shipward sbom` for every release.
    - Coordinated vulnerability disclosure policy: [SECURITY.md](../SECURITY.md).
    - Contact for reporting vulnerabilities: {{ contact .Security.Contact }}.
-   - Decisions about known vulnerabilities (VEX): `{{ .VEX }}`, made by `cra triage export`.
+   - Decisions about known vulnerabilities (VEX): `{{ .VEX }}`, made by `shipward triage export`.
    - TODO: the technical means for distributing updates securely (for example signed updates over HTTPS).
 
 c. **Production and monitoring**: TODO: how releases are built (for example CI from a clean checkout), how they
-   are checked, and how the product is monitored after release (for example `cra scan` in CI on every push).
+   are checked, and how the product is monitored after release (for example `shipward scan` in CI on every push).
 
 ## 3. Cybersecurity risk assessment
 
@@ -33,7 +33,7 @@ the product is designed, developed and produced to a level of cybersecurity that
 
 | Requirement (Annex I, part I, point 2) | Applies? | How the product meets it |
 |---|---|---|
-| (a) No known exploitable vulnerabilities when made available | TODO | TODO (`cra scan` and `cra triage` before each release) |
+| (a) No known exploitable vulnerabilities when made available | TODO | TODO (`shipward scan` and `shipward triage` before each release) |
 | (b) Secure by default configuration, and a reset to the original state | TODO | TODO |
 | (c) Vulnerabilities fixed by security updates, automatic where suitable, with an opt-out | TODO | TODO |
 | (d) Protection from unauthorised access (authentication, identity or access management) | TODO | TODO |
@@ -49,7 +49,7 @@ the product is designed, developed and produced to a level of cybersecurity that
 
 ## 4. Support period
 
-The support period ends {{ if .SupportUntil }}{{ .SupportUntil }}{{ else }}TODO (`product.support_until` in cra.yaml){{ end }}. TODO: what was considered when setting it (Article 13(8):
+The support period ends {{ if .SupportUntil }}{{ .SupportUntil }}{{ else }}TODO (`product.support_until` in shipward.yaml){{ end }}. TODO: what was considered when setting it (Article 13(8):
 at least five years, unless the product is expected to be in use for less time).
 
 ## 5. Standards and solutions
@@ -60,7 +60,7 @@ or, where none were applied, the solutions used to meet Annex I, parts I and II.
 ## 6. Test reports
 
 TODO: the reports of tests that check the product and its vulnerability handling against Annex I, parts I and II
-(for example the test suite, and the `cra scan` summaries in CI).
+(for example the test suite, and the `shipward scan` summaries in CI).
 
 ## 7. EU declaration of conformity
 

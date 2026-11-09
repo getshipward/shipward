@@ -19,20 +19,20 @@ import (
 // exitFindings is the exit code when --fail-on matches. It differs from 1 (an error) so CI can tell them apart.
 const exitFindings = 3
 
-// scanFlags are the flags cra scan and cra triage share.
+// scanFlags are the flags shipward scan and shipward triage share.
 type scanFlags struct {
 	cfgPath, base, trustKey string
 	offline                 bool
 }
 
 func (s *scanFlags) register(fs *flag.FlagSet) {
-	fs.StringVar(&s.cfgPath, "config", config.DefaultFile, "path to cra.yaml")
+	fs.StringVar(&s.cfgPath, "config", config.DefaultFile, "path to shipward.yaml")
 	fs.StringVar(&s.base, "snapshot", snapshot.DefaultURL, "snapshot URL, or a local folder with index.json")
 	fs.BoolVar(&s.offline, "offline", false, "make no requests: use the cached snapshot and feeds only")
 	fs.StringVar(&s.trustKey, "trust-key", "", "also accept snapshots signed with this Ed25519 public key (base64), e.g. your own copy")
 }
 
-// run loads cra.yaml (optional when an SBOM file is given), the SBOM and the decisions, and scans.
+// run loads shipward.yaml (optional when an SBOM file is given), the SBOM and the decisions, and scans.
 func (s *scanFlags) run(ctx context.Context, sbomPath string) (*scan.Report, *config.Config, error) {
 	cfg, err := config.Load(s.cfgPath)
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *scanFlags) run(ctx context.Context, sbomPath string) (*scan.Report, *co
 	}
 	rep, err := scan.Run(ctx, scan.Options{
 		SBOM: sbomPath, BOM: bom, Decisions: decisions, Snapshot: s.base, Keys: trustedKeys(s.trustKey),
-		Offline: s.offline, UserAgent: "cra/" + version,
+		Offline: s.offline, UserAgent: "shipward/" + version,
 	})
 	return rep, cfg, err
 }
@@ -76,19 +76,19 @@ func runScan(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	switch *format {
 	case "text", "json", "markdown":
 	default:
-		fmt.Fprintf(stderr, "cra scan: unknown format %q (text, json, markdown)\n", *format)
+		fmt.Fprintf(stderr, "shipward scan: unknown format %q (text, json, markdown)\n", *format)
 		return 2
 	}
 	switch *failOn {
 	case "none", "open", "exploited":
 	default:
-		fmt.Fprintf(stderr, "cra scan: unknown --fail-on %q (none, open, exploited)\n", *failOn)
+		fmt.Fprintf(stderr, "shipward scan: unknown --fail-on %q (none, open, exploited)\n", *failOn)
 		return 2
 	}
 
 	rep, _, err := sf.run(ctx, fs.Arg(0))
 	if err != nil {
-		fmt.Fprintf(stderr, "cra scan: %v\n", err)
+		fmt.Fprintf(stderr, "shipward scan: %v\n", err)
 		return 1
 	}
 	switch *format {
@@ -96,7 +96,7 @@ func runScan(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(rep); err != nil {
-			fmt.Fprintf(stderr, "cra scan: %v\n", err)
+			fmt.Fprintf(stderr, "shipward scan: %v\n", err)
 			return 1
 		}
 	case "markdown":
@@ -107,12 +107,12 @@ func runScan(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if *summary != "" {
 		f, err := os.OpenFile(*summary, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
-			fmt.Fprintf(stderr, "cra scan: %v\n", err)
+			fmt.Fprintf(stderr, "shipward scan: %v\n", err)
 			return 1
 		}
 		printMarkdown(f, rep)
 		if err := f.Close(); err != nil {
-			fmt.Fprintf(stderr, "cra scan: %v\n", err)
+			fmt.Fprintf(stderr, "shipward scan: %v\n", err)
 			return 1
 		}
 	}
@@ -202,10 +202,10 @@ func printText(w io.Writer, rep *scan.Report, all bool) {
 		fmt.Fprintf(w, "Advisories that name these component versions: %d. Need a decision or work: %d. Decided: %d.\n", open+closed, open, closed)
 	}
 	if open > 0 {
-		fmt.Fprintln(w, "Record decisions with cra triage.")
+		fmt.Fprintln(w, "Record decisions with shipward triage.")
 	}
 	if len(rep.Unused) > 0 {
-		fmt.Fprintf(w, "%d decision(s) in vex.yaml match no advisory now (cra triage lists them).\n", len(rep.Unused))
+		fmt.Fprintf(w, "%d decision(s) in vex.yaml match no advisory now (shipward triage lists them).\n", len(rep.Unused))
 	}
 	if len(rep.NotChecked) > 0 {
 		fmt.Fprintf(w, "Not checked (no package URL of a known ecosystem): %s\n", listNames(rep.NotChecked, all))

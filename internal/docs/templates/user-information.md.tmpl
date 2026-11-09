@@ -7,7 +7,7 @@ numbers follow the annex.
 ## 1. Manufacturer
 
 {{ .Manufacturer.Name }}<br>
-{{ or .Manufacturer.Address "TODO: postal address (`manufacturer.address` in cra.yaml)" }}<br>
+{{ or .Manufacturer.Address "TODO: postal address (`manufacturer.address` in shipward.yaml)" }}<br>
 {{ if .Manufacturer.Email }}E-mail: {{ .Manufacturer.Email }}{{ else }}TODO: e-mail or other digital contact{{ end }}<br>
 {{ if .Manufacturer.URL }}Website: {{ .Manufacturer.URL }}{{ else }}Website: TODO, if there is one{{ end }}
 
@@ -15,7 +15,7 @@ numbers follow the annex.
 
 Report vulnerabilities in {{ .Product.Name }} to {{ contact .Security.Contact }}. This is our single point of contact
 for vulnerabilities (Article 13(17)).
-{{ if .Security.Policy }}Our coordinated vulnerability disclosure policy: {{ .Security.Policy }}{{ else }}TODO: the address of the coordinated vulnerability disclosure policy (`security.policy` in cra.yaml; the draft is SECURITY.md).{{ end }}
+{{ if .Security.Policy }}Our coordinated vulnerability disclosure policy: {{ .Security.Policy }}{{ else }}TODO: the address of the coordinated vulnerability disclosure policy (`security.policy` in shipward.yaml; the draft is SECURITY.md).{{ end }}
 
 ## 3. The product
 
@@ -26,7 +26,7 @@ product, and the platforms it runs on).
 
 ## 4. Intended purpose
 
-{{ or .Product.Purpose "TODO: who uses the product, for what, and in which environment (`product.purpose` in cra.yaml)." }}
+{{ or .Product.Purpose "TODO: who uses the product, for what, and in which environment (`product.purpose` in shipward.yaml)." }}
 
 TODO: its essential functions, and its security properties (for example what it stores, what it sends, and how it
 protects them).
@@ -42,7 +42,7 @@ TODO: the address where the EU declaration of conformity can be read (the draft 
 
 ## 7. Security support
 
-We fix vulnerabilities and provide security updates free of charge{{ if .SupportUntil }} until {{ .SupportUntil }}{{ else }} until TODO: the end of the support period (`product.support_until` in cra.yaml){{ end }}.
+We fix vulnerabilities and provide security updates free of charge{{ if .SupportUntil }} until {{ .SupportUntil }}{{ else }} until TODO: the end of the support period (`product.support_until` in shipward.yaml){{ end }}.
 
 TODO: the kind of technical security support (for example security updates through the product's own updater, and
 advisories on the website).
@@ -62,5 +62,5 @@ f. **Integrating the product**: TODO: only if the product is meant to be built i
 
 ## 9. Software bill of materials
 
-TODO: if you give users the SBOM ({{ .SBOM }}, made by `cra sbom`), say where they can get it. Otherwise remove this
+TODO: if you give users the SBOM ({{ .SBOM }}, made by `shipward sbom`), say where they can get it. Otherwise remove this
 point.

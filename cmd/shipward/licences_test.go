@@ -11,7 +11,7 @@ import (
 func TestLicencesWrite(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{
-		"cra.yaml": "product:\n  name: App\nmanufacturer:\n  name: Maker\n",
+		"shipward.yaml": "product:\n  name: App\nmanufacturer:\n  name: Maker\n",
 		"sbom/sbom.cdx.json": `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[
 			{"type":"library","name":"a","version":"1.0.0","purl":"pkg:npm/a@1.0.0","licenses":[{"license":{"id":"MIT","acknowledgement":"declared"}}]},
 			{"type":"library","name":"a","version":"1.0.0","purl":"pkg:npm/a@1.0.0","licenses":[{"license":{"id":"MIT","acknowledgement":"declared"}}]},
@@ -30,7 +30,7 @@ func TestLicencesWrite(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if code := runLicences([]string{"--config", filepath.Join(dir, "cra.yaml"), "--write"}, &stdout, &stderr); code != 0 {
+	if code := runLicences([]string{"--config", filepath.Join(dir, "shipward.yaml"), "--write"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
 	got, err := os.ReadFile(filepath.Join(dir, "licences.yaml"))

@@ -86,7 +86,7 @@ func TestExport(t *testing.T) {
 		{ID: "GHSA-3", Component: "pkg:npm/gone@1.0.0", Status: Fixed, Date: "2026-11-01"},
 	}
 	targets := []string{"pkg:npm/a@1.0.0", "pkg:npm/a@2.0.0", "pkg:npm/b@1.0.0"}
-	doc, err := Export("Maker", "cra test", "urn:cdx:x/1#product", list, targets, map[string][]string{"GHSA-1": {"CVE-1"}})
+	doc, err := Export("Maker", "shipward test", "urn:cdx:x/1#product", list, targets, map[string][]string{"GHSA-1": {"CVE-1"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestExport(t *testing.T) {
 	if s.Vulnerability.Name != "GHSA-1" || s.Vulnerability.Aliases[0] != "CVE-1" || len(s.Products[0].Subcomponents) != 2 {
 		t.Errorf("statement = %+v; want both shipped versions of a", s)
 	}
-	again, _ := Export("Maker", "cra test", "urn:cdx:x/1#product", list, targets, map[string][]string{"GHSA-1": {"CVE-1"}})
+	again, _ := Export("Maker", "shipward test", "urn:cdx:x/1#product", list, targets, map[string][]string{"GHSA-1": {"CVE-1"}})
 	if again.ID != doc.ID {
 		t.Error("the same input gave another @id")
 	}
