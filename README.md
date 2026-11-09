@@ -217,3 +217,7 @@ go run ./cmd/cra version
 `cra` bundles [Syft](https://github.com/anchore/syft) (Apache-2.0) as a library: see `NOTICE`. CI accepts the
 vulnerabilities listed in `.govulncheck-allow`, each with its reason (package-level scan: the full call-graph scan needs
 5–7 GB).
+
+## Licence
+
+Apache-2.0: see [`LICENSE`](LICENSE). `NOTICE` lists the bundled libraries and data sources.

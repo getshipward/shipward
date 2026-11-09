@@ -1,7 +1,7 @@
 # Shipward's own CRA settings: cra makes the SBOM of cra itself (CI, and every release in .github/workflows/release.yml).
 product:
   name: cra
-  licence: LicenseRef-sori-resitve-proprietary
+  licence: Apache-2.0
   executable: true
   archive: false
   structured: false
