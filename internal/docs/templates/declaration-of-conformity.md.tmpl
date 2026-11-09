@@ -1,0 +1,23 @@
+<!-- {{ .Note }} Sign it only when the technical documentation is complete and the conformity assessment is done. -->
+# EU declaration of conformity
+
+No. TODO: a number for this declaration
+
+1. **Product**: {{ .Product.Name }}{{ if .Product.Description }}: {{ sentence .Product.Description }}{{ else }}.{{ end }} TODO: the type, the version and anything else that identifies the product exactly.
+2. **Manufacturer**: {{ .Manufacturer.Name }}, {{ or .Manufacturer.Address "TODO: postal address" }}
+3. This declaration of conformity is issued under the sole responsibility of the manufacturer.
+4. **Object of the declaration**: {{ .Product.Name }}, version TODO. TODO: anything that allows tracing it, for
+   example the build or the SBOM's serial number.
+5. The object of the declaration described above is in conformity with the relevant Union harmonisation legislation:
+   Regulation (EU) 2024/2847 (Cyber Resilience Act). TODO: other Union legislation that applies, if any.
+6. **Harmonised standards, common specifications or certification**: TODO: the references, or "None" (then the
+   technical documentation describes the solutions used).
+7. **Notified body**: None. Conformity assessment: internal control (module A, Annex VIII, part I), for a product not
+   listed in Annex III or IV. TODO: confirm that the product is not an important or critical product.
+8. **Additional information**: TODO, or remove.
+
+Signed for and on behalf of: {{ .Manufacturer.Name }}
+
+(place and date of issue): TODO
+
+(name, function) (signature): TODO

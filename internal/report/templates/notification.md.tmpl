@@ -1,0 +1,39 @@
+<!-- {{ .Note }} -->
+# {{ if .IsIncident }}Incident{{ else }}Vulnerability{{ end }} notification: {{ .Case.Title }}
+
+**Due {{ when .Due.Notification }}** (72 hours after becoming aware; CRA Article {{ if .IsIncident }}14(4)(b){{ else }}14(2)(b){{ end }}).
+Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIRT coordinator" }}. Then run
+`cra report done {{ .ID }} notification`.
+
+## General information about the product
+
+{{ .Product.Name }}{{ with .Product.Description }}: {{ sentence . }}{{ else }}.{{ end }} Manufacturer: {{ sentence .Manufacturer.Name }}
+{{ with .Case.Versions }}Affected versions: {{ join . ", " }}.{{ else }}TODO: affected versions.{{ end }}
+{{ with .Case.Components }}Affected components: {{ join . ", " }}.{{ end }}
+
+{{ if .IsIncident -}}
+## Nature of the incident
+
+TODO: what happened, as far as you know.
+
+## Initial assessment
+
+TODO: your first assessment of the incident: what is affected, how badly, and since when.
+{{- else -}}
+## Nature of the exploit and the vulnerability
+
+{{ with .Case.Advisories }}Advisories: {{ join . ", " }}.{{ end }}
+TODO: the general nature of the vulnerability and of the exploit seen.
+{{- end }}
+
+## Measures taken
+
+{{ list .Case.MeasuresTaken "TODO: the corrective or mitigating measures you have taken." }}
+
+## Measures users can take
+
+{{ list .Case.UserMeasures "TODO: the corrective or mitigating measures users can take." }}
+
+## Sensitivity
+
+{{ or .Case.Sensitivity "TODO: how sensitive you consider this information (for example TLP:AMBER), or remove." }}

@@ -1,0 +1,14 @@
+# Shipward's own CRA settings: cra makes the SBOM of cra itself (CI, and every release in .github/workflows/release.yml).
+product:
+  name: cra
+  licence: LicenseRef-sori-resitve-proprietary
+  executable: true
+  archive: false
+  structured: false
+manufacturer:
+  name: "Šori rešitve, Daniel Arthur Hawton, s.p."
+  url: https://sori-resitve.si
+  email: daniel@sori-resitve.si
+sbom:
+  # Test data and docs are not part of the binary.
+  exclude: ["./docs/**", "./**/testdata/**"]

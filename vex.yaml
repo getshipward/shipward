@@ -1,0 +1,16 @@
+# Decisions about advisories that name a component of this product (VEX). cra scan shows them next to each
+# advisory; cra triage export writes them as OpenVEX. Add or change entries with cra triage set, or by hand.
+# status: not_affected (needs justification or impact), affected (needs action), fixed, under_investigation.
+# component: a purl with @version, or without it for every version.
+
+- id: GO-2026-5932
+  component: pkg:golang/golang.org/x/crypto@v0.58.0
+  status: not_affected
+  justification: vulnerable_code_not_present
+  impact: No golang.org/x/crypto/openpgp package is built into cra (go list -deps ./cmd/...); the openpgp code a dependency uses is github.com/ProtonMail/go-crypto, the maintained replacement.
+  date: "2026-11-06"
+- id: GO-2026-6905
+  component: pkg:golang/github.com/blakesmith/ar@v0.0.0-20190502131153-809d4375e1fb
+  status: affected
+  action: A crafted .deb file in the scanned folder makes cra sbom stop with a panic; nothing else happens. No fix exists upstream. Scan only your own source tree (.govulncheck-allow).
+  date: "2026-11-06"

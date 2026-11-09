@@ -1,0 +1,19 @@
+<!-- {{ .Note }} -->
+# Security notice: {{ .Case.Title }}
+
+Tell the users affected (and, where appropriate, all users) as soon as you can (CRA Article 14(8)). Publish it where
+your users will see it, for example on your website, in the product or by e-mail. Where it fits, also publish the
+decision in machine-readable form (`cra triage set`, then `cra triage export`). Then run
+`cra report done {{ .ID }} users`.
+
+---
+
+{{ if .IsIncident }}{{ .Manufacturer.Name }} is dealing with a security incident that affects {{ .Product.Name }}{{ else }}Attackers are using a vulnerability in {{ .Product.Name }}{{ end }}{{ with .Case.Versions }} (versions {{ join . ", " }}){{ end }}.
+
+**What happened**: TODO: in plain words, what the problem is and what it can mean for users.
+
+**What we did**: {{ list .Case.MeasuresTaken "TODO" }}
+
+**What you should do**: {{ list .Case.UserMeasures "TODO: for example, update to version X." }}
+
+Questions: {{ .Contact }}.

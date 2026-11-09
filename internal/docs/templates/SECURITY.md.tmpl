@@ -1,0 +1,33 @@
+<!-- {{ .Note }} -->
+# Security policy
+
+This is the coordinated vulnerability disclosure policy of {{ .Product.Name }}, made by {{ sentence .Manufacturer.Name }}
+
+## Reporting a vulnerability
+
+Report a vulnerability to {{ contact .Security.Contact }}. Please do not open a public issue.
+
+Include, if you can: the product version, what the vulnerability is, how to reproduce it, and what an attacker could do
+with it. Reports in {{ languages .Security.Languages }} are welcome.
+
+Report vulnerabilities in the components {{ .Product.Name }} uses to us as well. We pass them on to the people who
+maintain those components.
+
+## What happens next
+
+- We confirm that we received your report within 5 working days.
+- We tell you within 30 days whether we can reproduce it and what we plan to do.
+- We fix confirmed vulnerabilities without delay, and ship security updates free of charge, separately from new
+  features where we can.
+- When the fix is out, we publish an advisory: what the vulnerability was, which versions it affects, its impact and
+  severity, and what users should do. We name you if you want to be named.
+- We ask you to keep the vulnerability private until the fix is out, or for 90 days, whichever comes first. If we need
+  longer, we tell you why.
+
+We report actively exploited vulnerabilities and severe incidents to the authorities, as the EU Cyber Resilience Act
+requires.
+
+## Supported versions
+
+{{ if .SupportUntil }}We provide security updates for {{ .Product.Name }} until {{ .SupportUntil }}.{{ else }}TODO: the end of the support period (`product.support_until` in cra.yaml).{{ end }} Security updates
+are for the latest version; please update to it.

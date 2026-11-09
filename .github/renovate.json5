@@ -1,0 +1,46 @@
+// Renovate: dependency updates at any time.
+// https://docs.renovatebot.com/configuration-options/
+//
+// Renovate turns on GitHub auto-merge for every update that is not a major one, so GitHub merges it once the required
+// check "test" (go vet, gofmt, tests, govulncheck) has passed: Go modules (0.x minors too), GitHub Actions, pins,
+// digests and new Go versions. Waits for a person: major updates.
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended', 'helpers:pinGitHubActionDigests'],
+  timezone: 'Europe/Ljubljana',
+  // A release must be 3 days old: most broken or hijacked releases are pulled within that time.
+  minimumReleaseAge: '3 days',
+  internalChecksFilter: 'strict',
+  postUpdateOptions: ['gomodTidy'],
+  // Every update gets auto-merge. Majors lose it below.
+  labels: ['dependencies'],
+  automerge: true,
+  automergeType: 'pr',
+  platformAutomerge: true,
+  // Security fixes: a PR as soon as an advisory is known (GitHub's alerts and the OSV database), with no
+  // 3-day wait. They merge like any other update (see the top of this file).
+  osvVulnerabilityAlerts: true,
+  vulnerabilityAlerts: {
+    addLabels: ['security'],
+    schedule: ['at any time'],
+    minimumReleaseAge: null,
+  },
+  packageRules: [
+    {
+      matchManagers: ['gomod'],
+      matchUpdateTypes: ['minor', 'patch'],
+      matchDepTypes: ['require', 'indirect'],
+      groupName: 'Go modules (non-major)',
+    },
+    {
+      matchManagers: ['github-actions'],
+      groupName: 'GitHub Actions',
+    },
+    {
+      description: 'A major update waits for a person',
+      matchUpdateTypes: ['major'],
+      labels: ['dependencies'],
+      automerge: false,
+    },
+  ],
+}

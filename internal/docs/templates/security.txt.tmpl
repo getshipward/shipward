@@ -1,0 +1,11 @@
+# {{ .Note }}
+# Publish this file at /.well-known/security.txt on your website (RFC 9116). Renew it before it expires.
+Contact: {{ .Security.Contact }}
+Expires: {{ .Expires }}
+{{- if .Security.Policy }}
+Policy: {{ .Security.Policy }}
+{{- end }}
+Preferred-Languages: {{ join .Security.Languages ", " }}
+{{- if .Product.Website }}
+Canonical: {{ origin .Product.Website }}/.well-known/security.txt
+{{- end }}

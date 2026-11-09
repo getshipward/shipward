@@ -1,0 +1,21 @@
+<!-- {{ .Note }} -->
+# Early warning: {{ .Case.Title }}
+
+**Due {{ when .Due.EarlyWarning }}** (24 hours after becoming aware, {{ when .Case.Aware }}; CRA Article 14(2)(a){{ if .IsIncident }}, 14(4)(a){{ end }}).
+Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIRT coordinator (`reports.csirt` in cra.yaml)" }}. Then run
+`cra report done {{ .ID }} early-warning`.
+
+| Field | Value |
+|---|---|
+| Kind | {{ if .IsIncident }}Severe incident having an impact on the security of the product{{ else }}Actively exploited vulnerability in the product{{ end }} |
+| Product | {{ .Product.Name }}{{ with .Case.Versions }}, versions {{ join . ", " }}{{ end }} |
+| Manufacturer | {{ .Manufacturer.Name }} |
+| Became aware | {{ when .Case.Aware }} |
+| Member States where the product is made available | {{ if .Case.MemberStates }}{{ states .Case.MemberStates }}{{ else }}TODO (`product.markets` in cra.yaml){{ end }} |
+{{- if .IsIncident }}
+| Suspected to be caused by unlawful or malicious acts | {{ or .Case.Malicious "TODO: yes, no or unknown" }} |
+{{- else }}
+| Advisories | {{ if .Case.Advisories }}{{ join .Case.Advisories ", " }}{{ else }}TODO, if known{{ end }} |
+{{- end }}
+
+An early warning needs no more than this. Send it even if you know little yet: the notification follows within 72 hours.

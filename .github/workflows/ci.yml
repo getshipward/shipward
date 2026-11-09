@@ -1,0 +1,138 @@
+# CI for Shipward: vet, gofmt, actionlint, tests and govulncheck, then the snapshot builder image. Pull requests only
+# build the image; main also pushes it to ghcr.io/getshipward/cra-snapshot with the tags sha-<commit> and
+# main-<run number> (the newest main-N is the one that runs). A weekly run catches new Go vulnerabilities in code
+# that has not changed. The job "test" is the required check for main. Actions are pinned to commit SHAs on purpose.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  # Every pull request, with no paths filter: a merge waits for "test", and a
+  # check that never reports would hold the merge forever.
+  pull_request:
+  schedule:
+    - cron: "41 5 * * 1" # Mondays 05:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+      # The workflows, with shellcheck on every run: block. Our maintained fork of rhysd/actionlint, pinned by digest
+      # (Renovate updates it).
+      - name: actionlint
+        uses: docker://ghcr.io/dhawton/actionlint:1.8.1@sha256:bde90bd5e8e3820912a7e17b18863602b943e9dc7bfe37e4e3d87050d832a923
+        with:
+          args: -color
+
+      - name: go test
+        # -timeout: a hung test fails after 5 minutes and prints every goroutine's stack.
+        run: go test -race -count=1 -timeout 5m ./...
+
+      # Fails on any vulnerability in an imported package that is not listed, with its reason, in .govulncheck-allow.
+      # Package level, not symbol level: the call-graph scan of Syft's dependencies needs 5-7 GB and the runner kills
+      # it. Package level is stricter (it also flags vulnerable code that is never called).
+      - name: govulncheck
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@latest -scan package -format json ./... > govulncheck.json
+          found=$(jq -r 'select(.finding != null and .finding.trace[0].package != null) | .finding.osv' govulncheck.json | sort -u)
+          allowed=$(grep -oE '^GO-[0-9]+-[0-9]+' .govulncheck-allow | sort -u)
+          skipped=$(comm -12 <(echo "$found") <(echo "$allowed"))
+          new=$(comm -23 <(echo "$found") <(echo "$allowed"))
+          [ -z "$skipped" ] || echo "Allowed by .govulncheck-allow: $skipped"
+          if [ -n "$new" ]; then
+            echo "New vulnerabilities: $new"
+            go run golang.org/x/vuln/cmd/govulncheck@latest -scan package ./... || true
+            exit 1
+          fi
+
+  # The GitHub Action (action.yml) on this repository itself: cra's own SBOM, the field check and the scan, as users
+  # run it. Not a required check: it needs the snapshot at data.shipward.dev.
+  action:
+    needs: [test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: cra
+        uses: ./
+        with:
+          upload-name: cra-self
+      - name: Outputs
+        env:
+          OPEN: ${{ steps.cra.outputs.open }}
+        run: '[ -n "$OPEN" ] && echo "open advisories: $OPEN"'
+
+  # On a pull request the image is only built, so that a broken base image or Dockerfile fails before the merge:
+  # Renovate's updates merge by themselves.
+  image:
+    needs: [test]
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io/<owner>/cra-snapshot with the job's own token
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/cra-snapshot
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          # The runner is thrown away after the job; removing the builder first only costs time.
+          cleanup: false
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ github.event_name == 'push' }}
+          provenance: false
+          build-args: |
+            VERSION=main-${{ github.run_number }}
+          # main-N counts up (N is this workflow's run number), so the newest is easy to pick.
+          tags: |
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
+            ${{ env.IMAGE }}:main-${{ github.run_number }}
+          cache-from: type=gha
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max' || '' }}
+
+      - name: Summary
+        if: github.event_name == 'push'
+        run: |
+          {
+            echo "### Snapshot builder image built"
+            echo ""
+            echo "Tags: \`sha-${{ github.sha }}\`, \`main-${{ github.run_number }}\`"
+            echo ""
+            echo "Digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

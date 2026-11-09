@@ -1,0 +1,3 @@
+# Vulnerabilities CI accepts on purpose: one Go vulnerability ID per line, then the reason. Remove a line as soon as
+# a fix exists (CI prints what it skipped).
+GO-2026-6905 # github.com/blakesmith/ar (Syft's .deb reader): a crafted .deb makes cra panic. No fix upstream; a crash of a local CLI, no other effect.

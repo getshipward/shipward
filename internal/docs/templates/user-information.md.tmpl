@@ -1,0 +1,66 @@
+<!-- {{ .Note }} -->
+# Information for users of {{ .Product.Name }}
+
+This page gives the information the EU Cyber Resilience Act asks a manufacturer to give users (Annex II). Point
+numbers follow the annex.
+
+## 1. Manufacturer
+
+{{ .Manufacturer.Name }}<br>
+{{ or .Manufacturer.Address "TODO: postal address (`manufacturer.address` in cra.yaml)" }}<br>
+{{ if .Manufacturer.Email }}E-mail: {{ .Manufacturer.Email }}{{ else }}TODO: e-mail or other digital contact{{ end }}<br>
+{{ if .Manufacturer.URL }}Website: {{ .Manufacturer.URL }}{{ else }}Website: TODO, if there is one{{ end }}
+
+## 2. Reporting a vulnerability
+
+Report vulnerabilities in {{ .Product.Name }} to {{ contact .Security.Contact }}. This is our single point of contact
+for vulnerabilities (Article 13(17)).
+{{ if .Security.Policy }}Our coordinated vulnerability disclosure policy: {{ .Security.Policy }}{{ else }}TODO: the address of the coordinated vulnerability disclosure policy (`security.policy` in cra.yaml; the draft is SECURITY.md).{{ end }}
+
+## 3. The product
+
+{{ .Product.Name }}{{ if .Product.Description }}: {{ .Product.Description }}{{ end }}
+
+TODO: the type and anything else that identifies the product exactly (for example the version, as shown in the
+product, and the platforms it runs on).
+
+## 4. Intended purpose
+
+{{ or .Product.Purpose "TODO: who uses the product, for what, and in which environment (`product.purpose` in cra.yaml)." }}
+
+TODO: its essential functions, and its security properties (for example what it stores, what it sends, and how it
+protects them).
+
+## 5. Known risks
+
+TODO: any known or foreseeable situation, in normal use or in foreseeable misuse, that could lead to a significant
+cybersecurity risk. Write "None known" only if that is true.
+
+## 6. EU declaration of conformity
+
+TODO: the address where the EU declaration of conformity can be read (the draft is declaration-of-conformity.md).
+
+## 7. Security support
+
+We fix vulnerabilities and provide security updates free of charge{{ if .SupportUntil }} until {{ .SupportUntil }}{{ else }} until TODO: the end of the support period (`product.support_until` in cra.yaml){{ end }}.
+
+TODO: the kind of technical security support (for example security updates through the product's own updater, and
+advisories on the website).
+
+## 8. Instructions
+
+a. **Secure use**: TODO: what users must do when they first set up the product and while they use it, to keep it
+   secure.
+b. **Changes and your data**: TODO: how changes to the product (settings, add-ons, modifications) can affect the
+   security of data.
+c. **Installing security updates**: TODO: how security updates are installed.
+d. **Removing the product**: TODO: how to remove the product securely, and how to delete your data.
+e. **Automatic security updates**: TODO: how to turn off automatic security updates, if the product installs them
+   automatically.
+f. **Integrating the product**: TODO: only if the product is meant to be built into other products: what the
+   integrator needs. Otherwise remove this point.
+
+## 9. Software bill of materials
+
+TODO: if you give users the SBOM ({{ .SBOM }}, made by `cra sbom`), say where they can get it. Otherwise remove this
+point.

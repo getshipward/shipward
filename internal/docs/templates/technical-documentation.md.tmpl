@@ -1,0 +1,71 @@
+<!-- {{ .Note }} -->
+# Technical documentation: {{ .Product.Name }}
+
+The technical documentation the EU Cyber Resilience Act asks for (Article 31, Annex VII). Point numbers follow the
+annex. Keep it, and the EU declaration of conformity, at the disposal of market surveillance authorities for at least
+ten years after the product is placed on the market, or for the support period if that is longer (Article 13(13)).
+
+## 1. General description
+
+- **Intended purpose**: {{ or .Product.Purpose "TODO: the intended purpose (`product.purpose` in cra.yaml)." }}
+- **Versions**: TODO: the software versions that affect conformity with the essential requirements.
+- **Information for users**: [user-information.md](user-information.md).
+
+## 2. Design, development, production and vulnerability handling
+
+a. **Design and development**: TODO: the system architecture: how the software components build on or feed into
+   each other, and how they fit into the overall processing.
+
+b. **Vulnerability handling**:
+   - Software bill of materials: `{{ .SBOM }}`, made by `cra sbom` for every release.
+   - Coordinated vulnerability disclosure policy: [SECURITY.md](../SECURITY.md).
+   - Contact for reporting vulnerabilities: {{ contact .Security.Contact }}.
+   - Decisions about known vulnerabilities (VEX): `{{ .VEX }}`, made by `cra triage export`.
+   - TODO: the technical means for distributing updates securely (for example signed updates over HTTPS).
+
+c. **Production and monitoring**: TODO: how releases are built (for example CI from a clean checkout), how they
+   are checked, and how the product is monitored after release (for example `cra scan` in CI on every push).
+
+## 3. Cybersecurity risk assessment
+
+TODO: the risks the product is designed against, and how each requirement of Annex I, part I applies. Point (1):
+the product is designed, developed and produced to a level of cybersecurity that suits its risks. Point (2):
+
+| Requirement (Annex I, part I, point 2) | Applies? | How the product meets it |
+|---|---|---|
+| (a) No known exploitable vulnerabilities when made available | TODO | TODO (`cra scan` and `cra triage` before each release) |
+| (b) Secure by default configuration, and a reset to the original state | TODO | TODO |
+| (c) Vulnerabilities fixed by security updates, automatic where suitable, with an opt-out | TODO | TODO |
+| (d) Protection from unauthorised access (authentication, identity or access management) | TODO | TODO |
+| (e) Confidentiality of stored, sent or processed data (for example encryption) | TODO | TODO |
+| (f) Integrity of data, commands, programs and configuration | TODO | TODO |
+| (g) Only the data needed for the intended purpose | TODO | TODO |
+| (h) Availability of essential functions, also after an incident or a denial-of-service attack | TODO | TODO |
+| (i) Little negative effect on other devices or networks | TODO | TODO |
+| (j) Limited attack surfaces, including external interfaces | TODO | TODO |
+| (k) Exploitation mitigation, to reduce the impact of an incident | TODO | TODO |
+| (l) Recording and monitoring of relevant security activity, with an opt-out | TODO | TODO |
+| (m) Secure, permanent removal of all data and settings, and secure transfer where applicable | TODO | TODO |
+
+## 4. Support period
+
+The support period ends {{ if .SupportUntil }}{{ .SupportUntil }}{{ else }}TODO (`product.support_until` in cra.yaml){{ end }}. TODO: what was considered when setting it (Article 13(8):
+at least five years, unless the product is expected to be in use for less time).
+
+## 5. Standards and solutions
+
+TODO: the harmonised standards, common specifications or certification schemes applied (in full or which parts),
+or, where none were applied, the solutions used to meet Annex I, parts I and II.
+
+## 6. Test reports
+
+TODO: the reports of tests that check the product and its vulnerability handling against Annex I, parts I and II
+(for example the test suite, and the `cra scan` summaries in CI).
+
+## 7. EU declaration of conformity
+
+[declaration-of-conformity.md](declaration-of-conformity.md).
+
+## 8. Software bill of materials
+
+`{{ .SBOM }}`. Give it to a market surveillance authority when it asks for it with reasons.

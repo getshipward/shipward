@@ -1,0 +1,144 @@
+# The Shipward GitHub Action: builds cra from this repository's source (at the ref you pin), then makes the SBOM,
+# lists missing BSI fields, scans for known vulnerabilities and exports the VEX decisions, all inside your job. The
+# results go into the job summary and a workflow artifact; nothing goes to us.
+#
+#   - uses: actions/checkout@...
+#   - run: dotnet restore --locked-mode            # NuGet: hashes and creators come from the restored packages
+#   - uses: getshipward/shipward@<commit>          # cra.yaml in the repository root
+#
+# It changes the job's Go version (setup-go) to the one cra is built with.
+name: Shipward cra
+description: SBOM, SBOM field check, local vulnerability scan and VEX export, to help prepare for the EU Cyber Resilience Act.
+
+inputs:
+  working-directory:
+    description: Folder with cra.yaml.
+    default: "."
+  config:
+    description: Path to cra.yaml, relative to working-directory.
+    default: cra.yaml
+  version:
+    description: Product version in the SBOM. Default the tag name on a tag push, else the commit (first 12 characters).
+    default: ""
+  check:
+    description: List SBOM fields missing for BSI TR-03183-2 (never fails the job).
+    default: "true"
+  scan:
+    description: Match the SBOM against the vulnerability snapshot.
+    default: "true"
+  fail-on:
+    description: Fail the job when an advisory has no final decision (open), or when such an advisory is known to be exploited (exploited). Default none.
+    default: none
+  export-vex:
+    description: Write the OpenVEX document when vex.yaml exists.
+    default: "true"
+  artifact:
+    description: The delivered file of this build (its name and SHA-512 go into the SBOM).
+    default: ""
+  artifact-url:
+    description: Where the delivered file can be downloaded.
+    default: ""
+  upload:
+    description: Upload the output folder as a workflow artifact.
+    default: "true"
+  upload-name:
+    description: Name of the workflow artifact.
+    default: cra
+  upload-path:
+    description: Folder to upload, relative to working-directory (where cra.yaml sends the SBOM).
+    default: sbom
+
+outputs:
+  open:
+    description: Advisories without a final decision.
+    value: ${{ steps.scan.outputs.open }}
+  exploited:
+    description: Of those, the ones known to be exploited (CISA KEV or ENISA EUVD).
+    value: ${{ steps.scan.outputs.exploited }}
+  cra:
+    description: Path to the cra binary the action built, for more cra commands in later steps (for example one SBOM per installer).
+    value: ${{ steps.build.outputs.cra }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+        cache-dependency-path: ${{ github.action_path }}/go.sum
+
+    - name: Build cra
+      id: build
+      shell: bash
+      env:
+        CRA_REF: ${{ github.action_ref }}
+      run: |
+        go -C "$GITHUB_ACTION_PATH" build -trimpath -ldflags "-s -w -X main.version=${CRA_REF:-dev}" -o "$RUNNER_TEMP/cra" ./cmd/cra
+        "$RUNNER_TEMP/cra" version
+        echo "cra=$RUNNER_TEMP/cra" >> "$GITHUB_OUTPUT"
+
+    - name: SBOM
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VERSION: ${{ inputs.version }}
+        CONFIG: ${{ inputs.config }}
+        ARTIFACT: ${{ inputs.artifact }}
+        ARTIFACT_URL: ${{ inputs.artifact-url }}
+      run: |
+        if [ -z "$VERSION" ]; then
+          if [ "$GITHUB_REF_TYPE" = tag ]; then VERSION=$GITHUB_REF_NAME; else VERSION=${GITHUB_SHA::12}; fi
+        fi
+        args=(--config "$CONFIG" --version "$VERSION")
+        [ -n "$ARTIFACT" ] && args+=(--artifact "$ARTIFACT")
+        [ -n "$ARTIFACT_URL" ] && args+=(--artifact-url "$ARTIFACT_URL")
+        "$RUNNER_TEMP/cra" sbom "${args[@]}"
+
+    - name: SBOM fields
+      if: inputs.check == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CONFIG: ${{ inputs.config }}
+      run: '"$RUNNER_TEMP/cra" check sbom --config "$CONFIG" --summary "$GITHUB_STEP_SUMMARY" || true'
+
+    - name: Vulnerability scan
+      id: scan
+      if: inputs.scan == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CONFIG: ${{ inputs.config }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        code=0
+        "$RUNNER_TEMP/cra" scan --config "$CONFIG" --format json --summary "$GITHUB_STEP_SUMMARY" --fail-on "$FAIL_ON" \
+          > "$RUNNER_TEMP/cra-scan.json" || code=$?
+        if [ -s "$RUNNER_TEMP/cra-scan.json" ]; then
+          open=$(jq '[.findings[] | select(.state != "not_affected" and .state != "fixed")] | length' "$RUNNER_TEMP/cra-scan.json")
+          exploited=$(jq '[.findings[] | select(.state != "not_affected" and .state != "fixed") | select(.kev or .euvd)] | length' "$RUNNER_TEMP/cra-scan.json")
+          echo "open=$open" >> "$GITHUB_OUTPUT"
+          echo "exploited=$exploited" >> "$GITHUB_OUTPUT"
+          echo "Advisories without a final decision: $open (known to be exploited: $exploited)"
+        fi
+        if [ "$code" = 3 ]; then
+          echo "::error::cra scan: advisories match fail-on: $FAIL_ON (see the job summary; record decisions with cra triage)"
+        fi
+        exit "$code"
+
+    - name: VEX
+      if: inputs.export-vex == 'true' && !cancelled()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CONFIG: ${{ inputs.config }}
+      run: |
+        vex=$("$RUNNER_TEMP/cra" triage export --config "$CONFIG" -o - 2>/dev/null | jq '.statements | length') || vex=""
+        if [ -n "$vex" ] && [ "$vex" != 0 ]; then "$RUNNER_TEMP/cra" triage export --config "$CONFIG"; else echo "No decisions to export."; fi
+
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      if: inputs.upload == 'true' && !cancelled()
+      with:
+        name: ${{ inputs.upload-name }}
+        path: ${{ inputs.working-directory }}/${{ inputs.upload-path }}
+        if-no-files-found: warn

@@ -1,0 +1,39 @@
+<!-- {{ .Note }} -->
+# Final report: {{ .Case.Title }}
+
+{{ if .IsIncident -}}
+**Due {{ if .Due.Final.IsZero }}one month after the incident notification is submitted (not submitted yet){{ else }}{{ when .Due.Final }}{{ end }}** (CRA Article 14(4)(c)).
+{{- else -}}
+**Due {{ if .Due.Final.IsZero }}14 days after a corrective or mitigating measure is available (record it with `cra report fixed {{ .ID }}`){{ else }}{{ when .Due.Final }}{{ end }}** (CRA Article 14(2)(c)).
+{{- end }}
+Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIRT coordinator" }}. Then run
+`cra report done {{ .ID }} final`.
+
+{{ if .IsIncident -}}
+## Detailed description
+
+TODO: a detailed description of the incident, including its severity and impact.
+
+## Threat or root cause
+
+TODO: the type of threat or the root cause that likely triggered the incident.
+
+## Mitigation measures
+
+{{ list .Case.MeasuresTaken "TODO: the mitigation measures applied and still ongoing." }}
+{{- else -}}
+## The vulnerability
+
+{{ with .Case.Advisories }}Advisories: {{ join . ", " }}.{{ end }}
+TODO: a description of the vulnerability, including its severity and impact.
+
+## Who exploited it
+
+TODO: where available, information about any malicious actor that has exploited or is exploiting the vulnerability,
+or "No information available".
+
+## The fix
+
+{{ with .Case.FixAvailable }}Available since {{ when . }}.{{ end }}
+{{ list .Case.MeasuresTaken "TODO: details of the security update or other corrective measures made available." }}
+{{- end }}
