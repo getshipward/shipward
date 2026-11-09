@@ -13,7 +13,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// LicenceConfirmation is one entry of licences.yaml: a licence a person checked for a component. cra sbom writes it
+// LicenceConfirmation is one entry of licences.yaml: a licence a person checked for a component. shipward sbom writes it
 // as the "concluded" licence, which TR-03183-2 maps its "distribution licence" to.
 type LicenceConfirmation struct {
 	// Component is a purl ("pkg:nuget/MessagePack@3.1.12", or without "@version" for every version), or name@version

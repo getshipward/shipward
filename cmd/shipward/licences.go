@@ -15,7 +15,7 @@ import (
 	"github.com/getshipward/shipward/internal/sbom"
 )
 
-const licencesHeader = `# Licences a person checked, one entry per component. cra sbom writes them into the SBOM as the
+const licencesHeader = `# Licences a person checked, one entry per component. shipward sbom writes them into the SBOM as the
 # "concluded" licence (BSI TR-03183-2: distribution licence). An entry without "@version" applies to every version
 # while the declared licence stays the same. Check each entry before you commit this file.
 `
@@ -23,14 +23,14 @@ const licencesHeader = `# Licences a person checked, one entry per component. cr
 func runLicences(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("licences", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	cfgPath := fs.String("config", config.DefaultFile, "path to cra.yaml")
+	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml")
 	write := fs.Bool("write", false, "add an entry for each unconfirmed component with one declared licence, to check by hand")
 	if err := parse(fs, args); err != nil {
 		return 2
 	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra licences: %v\n", err)
+		fmt.Fprintf(stderr, "shipward licences: %v\n", err)
 		return 1
 	}
 	path := fs.Arg(0)
@@ -39,7 +39,7 @@ func runLicences(args []string, stdout, stderr io.Writer) int {
 	}
 	bom, err := readBOM(path)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra licences: %v\n", err)
+		fmt.Fprintf(stderr, "shipward licences: %v\n", err)
 		return 1
 	}
 
@@ -68,16 +68,16 @@ func runLicences(args []string, stdout, stderr io.Writer) int {
 	file := cfg.Resolve(cfg.SBOM.Licences)
 	if *write && len(proposals) > 0 {
 		if err := appendLicences(file, proposals); err != nil {
-			fmt.Fprintf(stderr, "cra licences: %v\n", err)
+			fmt.Fprintf(stderr, "shipward licences: %v\n", err)
 			return 1
 		}
-		fmt.Fprintf(stdout, "added %d entries to %s. Check each one, then run cra sbom again.\n", len(proposals), file)
+		fmt.Fprintf(stdout, "added %d entries to %s. Check each one, then run shipward sbom again.\n", len(proposals), file)
 	} else {
 		for _, p := range proposals {
 			fmt.Fprintf(stdout, "unconfirmed  %-60s declared: %s\n", p.Component, p.Declared)
 		}
 		if len(proposals) > 0 {
-			fmt.Fprintf(stdout, "\n%d component(s) can be confirmed with cra licences --write (then check %s by hand).\n", len(proposals), file)
+			fmt.Fprintf(stdout, "\n%d component(s) can be confirmed with shipward licences --write (then check %s by hand).\n", len(proposals), file)
 		}
 	}
 	if len(manual) > 0 {

@@ -82,7 +82,7 @@ func (c *Client) Load(ctx context.Context, ecosystems []string) (*Data, error) {
 	return d, nil
 }
 
-// index fetches and checks index.json. A newer cached index wins (a server must not roll cra back to older data), and
+// index fetches and checks index.json. A newer cached index wins (a server must not roll shipward back to older data), and
 // without a network the cached one is used.
 func (c *Client) index(ctx context.Context, d *Data) (Index, error) {
 	cachePath := filepath.Join(c.CacheDir, "index.json")
@@ -95,7 +95,7 @@ func (c *Client) index(ctx context.Context, d *Data) (Index, error) {
 
 	if c.Offline {
 		if cached == nil {
-			return Index{}, errors.New("no cached vulnerability snapshot: run cra scan once without --offline")
+			return Index{}, errors.New("no cached vulnerability snapshot: run shipward scan once without --offline")
 		}
 		return *cached, nil
 	}
@@ -131,7 +131,7 @@ func (c *Client) file(ctx context.Context, f File) ([]byte, error) {
 		return data, nil
 	}
 	if c.Offline {
-		return nil, fmt.Errorf("%s is not cached: run cra scan once without --offline", f.Path)
+		return nil, fmt.Errorf("%s is not cached: run shipward scan once without --offline", f.Path)
 	}
 	data, err := c.get(ctx, f.Path, f.Size)
 	if err != nil {

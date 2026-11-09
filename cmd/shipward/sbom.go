@@ -16,12 +16,12 @@ import (
 func runSBOM(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("sbom", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	cfgPath := fs.String("config", config.DefaultFile, "path to cra.yaml")
+	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml")
 	ver := fs.String("version", "", "product version for this release (overrides product.version)")
 	out := fs.String("o", "", `output file, or "-" for stdout (overrides sbom.output)`)
 	artifact := fs.String("artifact", "", "the delivered file of this release; its name and SHA-512 go into the SBOM")
 	artifactURL := fs.String("artifact-url", "", "where the delivered file can be downloaded")
-	form := fs.String("form", "", `what the delivered file is, for the BSI fields: a list of executable, bundle (it holds other files) and structured ("executable,bundle"), or none. Overrides the product's settings in cra.yaml`)
+	form := fs.String("form", "", `what the delivered file is, for the BSI fields: a list of executable, bundle (it holds other files) and structured ("executable,bundle"), or none. Overrides the product's settings in shipward.yaml`)
 	nugetCache := fs.String("nuget-packages", sbom.DefaultNuGetCache(), "NuGet global packages folder, read for hashes and creators (empty: skip)")
 	if err := parse(fs, args); err != nil {
 		return 2
@@ -29,22 +29,22 @@ func runSBOM(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra sbom: %v\n", err)
+		fmt.Fprintf(stderr, "shipward sbom: %v\n", err)
 		return 1
 	}
 	extra, err := sbom.LoadExtra(cfg.Resolve(cfg.SBOM.Extra))
 	if err != nil {
-		fmt.Fprintf(stderr, "cra sbom: %v\n", err)
+		fmt.Fprintf(stderr, "shipward sbom: %v\n", err)
 		return 1
 	}
 	licences, err := sbom.LoadLicences(cfg.Resolve(cfg.SBOM.Licences))
 	if err != nil {
-		fmt.Fprintf(stderr, "cra sbom: %v\n", err)
+		fmt.Fprintf(stderr, "shipward sbom: %v\n", err)
 		return 1
 	}
 	if *form != "" {
 		if err := setForm(&cfg.Product, *form); err != nil {
-			fmt.Fprintf(stderr, "cra sbom: %v\n", err)
+			fmt.Fprintf(stderr, "shipward sbom: %v\n", err)
 			return 2
 		}
 	}
@@ -77,7 +77,7 @@ func runSBOM(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		NuGetCache:  *nugetCache,
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "cra sbom: %v\n", err)
+		fmt.Fprintf(stderr, "shipward sbom: %v\n", err)
 		return 1
 	}
 
@@ -87,13 +87,13 @@ func runSBOM(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	if target == "-" {
 		if err := sbom.Write(stdout, bom); err != nil {
-			fmt.Fprintf(stderr, "cra sbom: %v\n", err)
+			fmt.Fprintf(stderr, "shipward sbom: %v\n", err)
 			return 1
 		}
 		return 0
 	}
 	if err := writeFile(target, func(w io.Writer) error { return sbom.Write(w, bom) }); err != nil {
-		fmt.Fprintf(stderr, "cra sbom: %v\n", err)
+		fmt.Fprintf(stderr, "shipward sbom: %v\n", err)
 		return 1
 	}
 	fmt.Fprintf(stdout, "wrote %s (%d components, %d from %s)\n", target, sbom.Count(bom), len(extra), cfg.SBOM.Extra)
@@ -124,7 +124,7 @@ func writeFile(path string, write func(io.Writer) error) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".cra-*")
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".shipward-*")
 	if err != nil {
 		return err
 	}

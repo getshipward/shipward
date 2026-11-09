@@ -27,7 +27,7 @@ type Options struct {
 	Manufacturer Supplier
 	Extra        []ExtraComponent
 	Licences     []LicenceConfirmation
-	ToolVersion  string // version of cra, recorded in the SBOM metadata
+	ToolVersion  string // version of shipward, recorded in the SBOM metadata
 
 	// ProductLicence is the SPDX expression the product is distributed under; it is the maker's own statement, so it
 	// is written as concluded.
@@ -58,7 +58,7 @@ func Generate(ctx context.Context, o Options) (*cyclonedx.BOM, error) {
 	}
 	defer src.Close()
 
-	sbomCfg := syft.DefaultCreateSBOMConfig().WithTool("cra", o.ToolVersion)
+	sbomCfg := syft.DefaultCreateSBOMConfig().WithTool("shipward", o.ToolVersion)
 	s, err := syft.CreateSBOM(ctx, src, sbomCfg)
 	if err != nil {
 		return nil, fmt.Errorf("catalog %s: %w", o.Path, err)

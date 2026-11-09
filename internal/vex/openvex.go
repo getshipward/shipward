@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// OpenVEXContext is the spec version cra writes.
+// OpenVEXContext is the spec version shipward writes.
 const OpenVEXContext = "https://openvex.dev/ns/v0.2.0"
 
 // Document is an OpenVEX document.
@@ -51,7 +51,7 @@ type Component struct {
 	ID string `json:"@id"`
 }
 
-// Export builds the OpenVEX document for a product. productID is the product's IRI (cra uses the SBOM's BOM-Link);
+// Export builds the OpenVEX document for a product. productID is the product's IRI (shipward uses the SBOM's BOM-Link);
 // targets are the product's component purls (with versions), so a statement for every version is written for the
 // versions the product ships. aliases gives each advisory's other IDs. The document is deterministic: its timestamp
 // is the newest decision date and its @id a hash of the content, so an unchanged vex.yaml gives an unchanged file.

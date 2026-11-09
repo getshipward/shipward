@@ -9,7 +9,7 @@ import (
 
 func write(t *testing.T, content string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "cra.yaml")
+	path := filepath.Join(t.TempDir(), "shipward.yaml")
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}

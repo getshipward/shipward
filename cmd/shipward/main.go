@@ -1,4 +1,4 @@
-// Command cra helps a small software maker prepare for the EU Cyber Resilience Act. See README.md.
+// Command shipward helps a small software maker prepare for the EU Cyber Resilience Act. See README.md.
 package main
 
 import (
@@ -14,11 +14,11 @@ import (
 // version is set at build time with -ldflags "-X main.version=...".
 var version = "dev"
 
-const usage = `usage: cra <command> [flags]
+const usage = `usage: shipward <command> [flags]
 
 commands:
-  init        write cra.yaml and drafts of the CRA documents (SECURITY.md, security.txt, Annex II, V, VII)
-  sbom        make a CycloneDX SBOM of the product (reads cra.yaml)
+  init        write shipward.yaml and drafts of the CRA documents (SECURITY.md, security.txt, Annex II, V, VII)
+  sbom        make a CycloneDX SBOM of the product (reads shipward.yaml)
   check sbom  list fields the SBOM misses (BSI TR-03183-2 v2.1.0)
   scan        match the SBOM against public vulnerability data, on this machine
   triage      record decisions about advisories (VEX) and export them as OpenVEX
@@ -61,13 +61,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stdout, usage)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "cra: unknown command %q\n\n%s", args[0], usage)
+		fmt.Fprintf(stderr, "shipward: unknown command %q\n\n%s", args[0], usage)
 		return 2
 	}
 }
 
 // parse lets flags come after file names too (Go's flag package stops at the first argument that is not a flag), so
-// "cra scan sbom.json --format json" works like "cra scan --format json sbom.json".
+// "shipward scan sbom.json --format json" works like "shipward scan --format json sbom.json".
 func parse(fs *flag.FlagSet, args []string) error {
 	var flags, pos []string
 	for i := 0; i < len(args); i++ {

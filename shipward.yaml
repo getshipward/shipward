@@ -1,4 +1,4 @@
-# Shipward's own CRA settings: cra makes the SBOM of Shipward itself (CI, and every release in .github/workflows/release.yml).
+# Shipward's own CRA settings: shipward makes the SBOM of Shipward itself (CI, and every release in .github/workflows/release.yml).
 product:
   name: Shipward
   licence: Apache-2.0

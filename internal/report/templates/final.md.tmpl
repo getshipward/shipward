@@ -4,10 +4,10 @@
 {{ if .IsIncident -}}
 **Due {{ if .Due.Final.IsZero }}one month after the incident notification is submitted (not submitted yet){{ else }}{{ when .Due.Final }}{{ end }}** (CRA Article 14(4)(c)).
 {{- else -}}
-**Due {{ if .Due.Final.IsZero }}14 days after a corrective or mitigating measure is available (record it with `cra report fixed {{ .ID }}`){{ else }}{{ when .Due.Final }}{{ end }}** (CRA Article 14(2)(c)).
+**Due {{ if .Due.Final.IsZero }}14 days after a corrective or mitigating measure is available (record it with `shipward report fixed {{ .ID }}`){{ else }}{{ when .Due.Final }}{{ end }}** (CRA Article 14(2)(c)).
 {{- end }}
 Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIRT coordinator" }}. Then run
-`cra report done {{ .ID }} final`.
+`shipward report done {{ .ID }} final`.
 
 {{ if .IsIncident -}}
 ## Detailed description

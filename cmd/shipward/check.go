@@ -18,20 +18,20 @@ const maxListed = 5
 
 func runCheck(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "sbom" {
-		fmt.Fprintln(stderr, "usage: cra check sbom [--profile bsi] [file]")
+		fmt.Fprintln(stderr, "usage: shipward check sbom [--profile bsi] [file]")
 		return 2
 	}
 	fs := flag.NewFlagSet("check sbom", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	profile := fs.String("profile", "bsi", "rule set: bsi (BSI TR-03183-2 v2.1.0)")
-	cfgPath := fs.String("config", config.DefaultFile, "path to cra.yaml (used when no file is given)")
+	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml (used when no file is given)")
 	all := fs.Bool("all", false, "name every failing component, not only the first few")
 	summary := fs.String("summary", "", `also append the result to this Markdown file (in GitHub Actions: "$GITHUB_STEP_SUMMARY")`)
 	if err := parse(fs, args[1:]); err != nil {
 		return 2
 	}
 	if *profile != "bsi" {
-		fmt.Fprintf(stderr, "cra check sbom: unknown profile %q (known: bsi)\n", *profile)
+		fmt.Fprintf(stderr, "shipward check sbom: unknown profile %q (known: bsi)\n", *profile)
 		return 2
 	}
 
@@ -39,14 +39,14 @@ func runCheck(args []string, stdout, stderr io.Writer) int {
 	if path == "" {
 		cfg, err := config.Load(*cfgPath)
 		if err != nil {
-			fmt.Fprintf(stderr, "cra check sbom: no file given and %v\n", err)
+			fmt.Fprintf(stderr, "shipward check sbom: no file given and %v\n", err)
 			return 1
 		}
 		path = cfg.Resolve(cfg.SBOM.Output)
 	}
 	bom, err := readBOM(path)
 	if err != nil {
-		fmt.Fprintf(stderr, "cra check sbom: %v\n", err)
+		fmt.Fprintf(stderr, "shipward check sbom: %v\n", err)
 		return 1
 	}
 
@@ -58,7 +58,7 @@ func runCheck(args []string, stdout, stderr io.Writer) int {
 	printResults(stdout, path, results, limit)
 	if *summary != "" {
 		if err := appendSummary(*summary, path, results); err != nil {
-			fmt.Fprintf(stderr, "cra check sbom: %v\n", err)
+			fmt.Fprintf(stderr, "shipward check sbom: %v\n", err)
 			return 1
 		}
 	}

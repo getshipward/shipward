@@ -50,7 +50,7 @@ func TestValidate(t *testing.T) {
 
 func TestSaveLoadAndDrafts(t *testing.T) {
 	root := t.TempDir()
-	cfgPath := filepath.Join(root, "cra.yaml")
+	cfgPath := filepath.Join(root, "shipward.yaml")
 	os.WriteFile(cfgPath, []byte("product:\n  name: Example Game\n  description: A board game.\n  markets: [EU]\nmanufacturer:\n  name: Example s.p.\n  email: sec@example.com\nreports:\n  csirt: SI-CERT\n"), 0o644)
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
@@ -75,7 +75,7 @@ func TestSaveLoadAndDrafts(t *testing.T) {
 		t.Errorf("list = %q", ids)
 	}
 
-	written, err := WriteDrafts(dir, id, got, cfg, false, cet, "cra test")
+	written, err := WriteDrafts(dir, id, got, cfg, false, cet, "shipward test")
 	if err != nil || len(written) != 4 {
 		t.Fatalf("drafts = %q, %v", written, err)
 	}
@@ -94,7 +94,7 @@ func TestSaveLoadAndDrafts(t *testing.T) {
 	if info, _ := os.Stat(filepath.Join(dir, "users.md")); info.Mode().Perm() != 0o600 {
 		t.Errorf("users.md mode %v; want private", info.Mode().Perm())
 	}
-	if again, _ := WriteDrafts(dir, id, got, cfg, false, cet, "cra test"); len(again) != 0 {
+	if again, _ := WriteDrafts(dir, id, got, cfg, false, cet, "shipward test"); len(again) != 0 {
 		t.Errorf("drafts overwritten without force: %q", again)
 	}
 }

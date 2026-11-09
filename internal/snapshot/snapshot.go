@@ -1,6 +1,6 @@
-// Package snapshot is the daily, signed copy of public vulnerability data that cra scan matches against, on the
-// maker's own machine. The builder (cmd/cra-snapshot) publishes it; cra downloads only the files it needs. Nobody sends
-// package names anywhere: the files are the same for everyone.
+// Package snapshot is the daily, signed copy of public vulnerability data that shipward scan matches against, on the
+// maker's own machine. The builder (cmd/shipward-snapshot) publishes it; shipward downloads only the files it needs.
+// Nobody sends package names anywhere: the files are the same for everyone.
 //
 // Layout under the base URL:
 //
@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-// Format is the version of this layout. A cra that does not know a format refuses the snapshot.
+// Format is the version of this layout. A shipward that does not know a format refuses the snapshot.
 const Format = 1
 
 // DefaultURL is where the published snapshot lives: one folder per format.
@@ -54,7 +54,7 @@ type Source struct {
 	Note    string `json:"note,omitempty"`
 }
 
-// Exploited is the content of exploited.json.gz, keyed by CVE ID. EUVD and EPSS are filled by cra from the sources
+// Exploited is the content of exploited.json.gz, keyed by CVE ID. EUVD and EPSS are filled by shipward from the sources
 // directly (Live), never from the snapshot.
 type Exploited struct {
 	KEV      map[string]KEV  `json:"kev"`
@@ -87,7 +87,7 @@ func FileName(ecosystem string) string {
 	return "osv-" + strings.ReplaceAll(ecosystem, " ", "-") + ".json.gz"
 }
 
-// TrustedKeys are the public keys cra accepts snapshots from (base64, Ed25519). A new key is added here one release
+// TrustedKeys are the public keys shipward accepts snapshots from (base64, Ed25519). A new key is added here one release
 // before the builder switches to it.
 var TrustedKeys = []string{
 	"lEo2EB4n5NrYCg2b0HUxtz/GYEvW05AW9OOfrfncpYg=", // since 6 Nov 2026
@@ -133,7 +133,7 @@ func Open(keys []string, data []byte) (Index, error) {
 		return Index{}, fmt.Errorf("snapshot index: %w", err)
 	}
 	if idx.Format != Format {
-		return Index{}, fmt.Errorf("snapshot format %d is not supported by this cra (it reads format %d): update cra", idx.Format, Format)
+		return Index{}, fmt.Errorf("snapshot format %d is not supported by this shipward (it reads format %d): update shipward", idx.Format, Format)
 	}
 	return idx, nil
 }

@@ -24,7 +24,7 @@ import (
 	"github.com/getshipward/shipward/internal/osv"
 )
 
-// Upstream addresses. EUVD and EPSS are not passed on in the snapshot (their reuse terms are unclear): cra fetches
+// Upstream addresses. EUVD and EPSS are not passed on in the snapshot (their reuse terms are unclear): shipward fetches
 // them itself (live.go).
 const (
 	OSVBase = "https://osv-vulnerabilities.storage.googleapis.com/"

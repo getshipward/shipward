@@ -1,4 +1,4 @@
-// Package osv holds the part of the OSV schema (https://ossf.github.io/osv-schema/) that cra needs, and decides whether
+// Package osv holds the part of the OSV schema (https://ossf.github.io/osv-schema/) that shipward needs, and decides whether
 // a package version is affected. Version comparison comes from osv-scalibr's semantic package; the range walk follows
 // osv-scalibr's enricher/vulnmatch/osvlocal (Apache-2.0, see NOTICE).
 package osv
@@ -219,7 +219,7 @@ func eventVersion(e Event) string {
 	return e.LastAffected
 }
 
-// Ecosystems are the OSV ecosystems cra knows, by purl type.
+// Ecosystems are the OSV ecosystems shipward knows, by purl type.
 var Ecosystems = map[string]string{
 	packageurl.TypeNPM:      "npm",
 	packageurl.TypeNuget:    "NuGet",
@@ -233,7 +233,7 @@ var Ecosystems = map[string]string{
 
 var pythonSeparators = regexp.MustCompile(`[-_.]+`)
 
-// FromPURL returns the OSV package and version for a purl, or ok=false for a purl type cra does not match.
+// FromPURL returns the OSV package and version for a purl, or ok=false for a purl type shipward does not match.
 func FromPURL(s string) (p Package, version string, ok bool) {
 	purl, err := packageurl.FromString(s)
 	if err != nil || purl.Version == "" {

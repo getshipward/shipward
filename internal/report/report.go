@@ -1,6 +1,6 @@
 // Package report keeps the cases a manufacturer must report under the EU Cyber Resilience Act, Article 14: an actively
 // exploited vulnerability or a severe incident. Each case is a folder with report.yaml (the facts and the times) and
-// Markdown drafts of each report. cra computes the deadlines; a person submits the reports on ENISA's single reporting
+// Markdown drafts of each report. shipward computes the deadlines; a person submits the reports on ENISA's single reporting
 // platform, which has no API.
 package report
 
@@ -64,7 +64,7 @@ type Case struct {
 }
 
 // Header is written at the top of report.yaml.
-const Header = `# A case to report under the EU Cyber Resilience Act, Article 14 (cra report). It describes a vulnerability or an
+const Header = `# A case to report under the EU Cyber Resilience Act, Article 14 (shipward report). It describes a vulnerability or an
 # incident that may not be fixed or public yet: keep it out of public repositories. Times are RFC 3339.
 `
 

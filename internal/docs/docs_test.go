@@ -12,7 +12,7 @@ import (
 
 func load(t *testing.T, yaml string) *config.Config {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "cra.yaml")
+	path := filepath.Join(t.TempDir(), "shipward.yaml")
 	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ security:
   languages: [en, sl]
 `)
 	now := time.Date(2026, 11, 6, 15, 0, 0, 0, time.UTC)
-	results, err := Write(cfg, nil, false, now, "cra test")
+	results, err := Write(cfg, nil, false, now, "shipward test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ security:
 		t.Error("double full stop")
 	}
 	doc := read(t, cfg, "cra/declaration-of-conformity.md")
-	if !strings.HasPrefix(doc, "<!-- Draft written by cra test on 2026-11-06.") || !strings.Contains(doc, "Regulation (EU) 2024/2847") ||
+	if !strings.HasPrefix(doc, "<!-- Draft written by shipward test on 2026-11-06.") || !strings.Contains(doc, "Regulation (EU) 2024/2847") ||
 		!strings.Contains(doc, "**Product**: Example Game: A board game. TODO") || strings.Contains(doc, "..") {
 		t.Errorf("declaration:\n%s", doc)
 	}
@@ -85,24 +85,24 @@ security:
 
 	// A second run keeps the files; --force writes them again; --only picks one.
 	os.WriteFile(cfg.Resolve("SECURITY.md"), []byte("mine TODO\n"), 0o644)
-	results, err = Write(cfg, []string{"security"}, false, now, "cra test")
+	results, err = Write(cfg, []string{"security"}, false, now, "shipward test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(results) != 1 || results[0].Written || results[0].TODOs != 1 || read(t, cfg, "SECURITY.md") != "mine TODO\n" {
 		t.Errorf("kept: %+v", results)
 	}
-	if results, _ = Write(cfg, []string{"security"}, true, now, "cra test"); !results[0].Written {
+	if results, _ = Write(cfg, []string{"security"}, true, now, "shipward test"); !results[0].Written {
 		t.Error("--force did not write")
 	}
-	if _, err := Write(cfg, []string{"nope"}, false, now, "cra test"); err == nil {
+	if _, err := Write(cfg, []string{"nope"}, false, now, "shipward test"); err == nil {
 		t.Error("unknown document accepted")
 	}
 }
 
 func TestMissingValuesAreTODO(t *testing.T) {
 	cfg := load(t, "product:\n  name: App\nmanufacturer:\n  name: Maker\n")
-	results, err := Write(cfg, []string{"user-information", "security"}, false, time.Now(), "cra test")
+	results, err := Write(cfg, []string{"user-information", "security"}, false, time.Now(), "shipward test")
 	if err != nil {
 		t.Fatal(err)
 	}

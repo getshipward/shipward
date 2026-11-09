@@ -1,11 +1,11 @@
 # Shipward
 
-A command-line tool (`cra`) and a GitHub Action that help small software makers prepare for the EU Cyber Resilience
+A command-line tool (`shipward`) and a GitHub Action that help small software makers prepare for the EU Cyber Resilience
 Act (CRA). See `README.md`.
 
 ## Rules
 
-- **No user data on our servers.** `cra` runs in the maker's own build and on their own computer. Our only server
+- **No user data on our servers.** `shipward` runs in the maker's own build and on their own computer. Our only server
   part publishes a signed daily snapshot of public vulnerability data, and it receives no package names, SBOMs,
   findings or documents.
 - **Wording.** Call it a security tool. Never "document management", "archive" or "storage of records". Never
@@ -18,7 +18,7 @@ Act (CRA). See `README.md`.
 
 ## Stack
 
-- Go, one module at the repo root. The binary is `cmd/cra`; the snapshot builder is `cmd/cra-snapshot`.
+- Go, one module at the repo root. The binary is `cmd/shipward`; the snapshot builder is `cmd/shipward-snapshot`.
 - Tests: `go test ./...`. No database.
 
 ## Changes

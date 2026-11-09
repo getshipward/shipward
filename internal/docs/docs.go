@@ -1,6 +1,6 @@
 // Package docs writes drafts of the documents the EU Cyber Resilience Act asks a manufacturer to have: the
 // coordinated vulnerability disclosure policy (SECURITY.md), security.txt, the information for users (Annex II), the
-// EU declaration of conformity (Annex V) and the technical documentation (Annex VII). It fills in what cra.yaml knows
+// EU declaration of conformity (Annex V) and the technical documentation (Annex VII). It fills in what shipward.yaml knows
 // and marks the rest TODO. The drafts help a maker prepare; a person completes and checks them.
 package docs
 
@@ -22,7 +22,7 @@ import (
 //go:embed templates/*.tmpl
 var templates embed.FS
 
-// Doc is one document cra init can write.
+// Doc is one document shipward init can write.
 type Doc struct {
 	Name     string // short name for --only
 	Template string
@@ -30,7 +30,7 @@ type Doc struct {
 	File     string
 }
 
-// All lists the documents in the order cra init writes them.
+// All lists the documents in the order shipward init writes them.
 var All = []Doc{
 	{Name: "security", Template: "SECURITY.md.tmpl", Root: true, File: "SECURITY.md"},
 	{Name: "security.txt", Template: "security.txt.tmpl", File: "security.txt"},
@@ -57,7 +57,7 @@ type Result struct {
 	TODOs   int
 }
 
-// Write writes the documents (all, or the ones named in only) next to cra.yaml. An existing file is kept unless
+// Write writes the documents (all, or the ones named in only) next to shipward.yaml. An existing file is kept unless
 // force is set.
 func Write(cfg *config.Config, only []string, force bool, now time.Time, tool string) ([]Result, error) {
 	d := data{
@@ -113,7 +113,7 @@ func Write(cfg *config.Config, only []string, force bool, now time.Time, tool st
 		// contact shows the security contact as a person reads it: the address of a mailto: URI, or the URL.
 		"contact": func(s string) string {
 			if s == "" {
-				return "TODO: a security contact (`security.contact` in cra.yaml)"
+				return "TODO: a security contact (`security.contact` in shipward.yaml)"
 			}
 			return strings.TrimPrefix(s, "mailto:")
 		},

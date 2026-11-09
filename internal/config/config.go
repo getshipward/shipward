@@ -1,4 +1,4 @@
-// Package config reads cra.yaml, the per-product settings file that lives in the maker's repository.
+// Package config reads shipward.yaml, the per-product settings file that lives in the maker's repository.
 package config
 
 import (
@@ -12,10 +12,10 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// DefaultFile is the name cra looks for in the working directory.
-const DefaultFile = "cra.yaml"
+// DefaultFile is the name shipward looks for in the working directory.
+const DefaultFile = "shipward.yaml"
 
-// Config is the content of cra.yaml.
+// Config is the content of shipward.yaml.
 type Config struct {
 	Product      Product      `yaml:"product"`
 	Manufacturer Manufacturer `yaml:"manufacturer"`
@@ -25,14 +25,14 @@ type Config struct {
 	Docs         Docs         `yaml:"docs"`
 	Reports      Reports      `yaml:"reports"`
 
-	// dir is the directory cra.yaml was read from; relative paths are resolved against it.
+	// dir is the directory shipward.yaml was read from; relative paths are resolved against it.
 	dir string
 }
 
 // Product names the product the SBOM describes.
 type Product struct {
 	Name string `yaml:"name"`
-	// Version is usually left empty and passed per release (cra sbom --version, or the CI tag).
+	// Version is usually left empty and passed per release (shipward sbom --version, or the CI tag).
 	Version string `yaml:"version"`
 	// Licence is the SPDX expression the product is distributed under, e.g. "LicenseRef-<maker>-proprietary".
 	Licence string `yaml:"licence"`
@@ -41,7 +41,7 @@ type Product struct {
 	Archive    *bool `yaml:"archive"`
 	Structured *bool `yaml:"structured"`
 
-	// For cra init's documents (CRA Annex II and VII). Leave out what you do not know: the drafts mark it TODO.
+	// For shipward init's documents (CRA Annex II and VII). Leave out what you do not know: the drafts mark it TODO.
 	// Description says what the product is, in one sentence; Purpose its intended purpose (who uses it, for what).
 	Description string `yaml:"description"`
 	Purpose     string `yaml:"purpose"`
@@ -74,7 +74,7 @@ type Security struct {
 	Languages []string `yaml:"languages"`
 }
 
-// Reports says where cra report keeps its cases and whom they go to.
+// Reports says where shipward report keeps its cases and whom they go to.
 type Reports struct {
 	// Dir holds one folder per case. Default "cra/reports". The cases describe unfixed vulnerabilities: keep the
 	// repository private.
@@ -84,7 +84,7 @@ type Reports struct {
 	CSIRT string `yaml:"csirt"`
 }
 
-// Docs says where cra init writes its drafts.
+// Docs says where shipward init writes its drafts.
 type Docs struct {
 	// Dir is the folder for the CRA documents. Default "cra". SECURITY.md goes to the repository root.
 	Dir string `yaml:"dir"`
@@ -92,7 +92,7 @@ type Docs struct {
 
 // SBOM controls what is scanned and where the result goes.
 type SBOM struct {
-	// Path is the directory to scan, relative to cra.yaml. Default ".".
+	// Path is the directory to scan, relative to shipward.yaml. Default ".".
 	Path string `yaml:"path"`
 	// Exclude holds glob patterns (Syft syntax, e.g. "./tests/**") left out of the scan.
 	Exclude []string `yaml:"exclude"`
@@ -101,23 +101,45 @@ type SBOM struct {
 	// Extra is a hand-kept list of components no package manager knows about (engines, vendored code, add-ons).
 	// Default "components.extra.yaml"; a missing file is not an error.
 	Extra string `yaml:"extra"`
-	// Licences holds the licences a person confirmed (cra licences). Default "licences.yaml"; a missing file is not an
+	// Licences holds the licences a person confirmed (shipward licences). Default "licences.yaml"; a missing file is not an
 	// error.
 	Licences string `yaml:"licences"`
 }
 
 // VEX says where the maker's decisions about advisories live.
 type VEX struct {
-	// Path is the decisions file (cra triage set writes it). Default "vex.yaml".
+	// Path is the decisions file (shipward triage set writes it). Default "vex.yaml".
 	Path string `yaml:"path"`
-	// Output is the OpenVEX document cra triage export writes. Default "sbom/vex.openvex.json".
+	// Output is the OpenVEX document shipward triage export writes. Default "sbom/vex.openvex.json".
 	Output string `yaml:"output"`
 }
 
-// Load reads and checks a cra.yaml file.
+// OldFile is the name the settings file had before shipward was renamed from cra.
+const OldFile = "cra.yaml"
+
+// OldName returns an error when path is the default settings file, it does not exist, and the old cra.yaml is next
+// to it: the settings would otherwise be ignored without a word.
+func OldName(path string) error {
+	if filepath.Base(path) != DefaultFile {
+		return nil
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	old := filepath.Join(filepath.Dir(path), OldFile)
+	if _, err := os.Stat(old); err != nil {
+		return nil
+	}
+	return fmt.Errorf("%s not found, but %s is there: rename it to %s", path, old, DefaultFile)
+}
+
+// Load reads and checks a shipward.yaml file.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if old := OldName(path); old != nil {
+			return nil, old
+		}
 		return nil, err
 	}
 	var c Config
@@ -186,7 +208,7 @@ func (c *Config) validate() error {
 	return errors.Join(errs...)
 }
 
-// Resolve turns a path from cra.yaml into one relative to the working directory.
+// Resolve turns a path from shipward.yaml into one relative to the working directory.
 func (c *Config) Resolve(p string) string {
 	if filepath.IsAbs(p) {
 		return p

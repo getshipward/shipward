@@ -11,7 +11,7 @@ import (
 
 func TestReportFlow(t *testing.T) {
 	dir := t.TempDir()
-	cfg := filepath.Join(dir, "cra.yaml")
+	cfg := filepath.Join(dir, "shipward.yaml")
 	os.WriteFile(cfg, []byte("product:\n  name: Example Game\nmanufacturer:\n  name: Maker\n"), 0o644)
 	now := time.Now()
 	aware := now.Add(-30 * time.Hour).Format(time.RFC3339)
