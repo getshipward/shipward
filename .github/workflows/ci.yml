@@ -1,5 +1,5 @@
 # CI for Shipward: vet, gofmt, actionlint, tests and govulncheck, then the snapshot builder image. Pull requests only
-# build the image; main also pushes it to ghcr.io/getshipward/cra-snapshot with the tags sha-<commit> and
+# build the image; main also pushes it to ghcr.io/getshipward/shipward-snapshot with the tags sha-<commit> and
 # main-<run number> (the newest main-N is the one that runs). A weekly run catches new Go vulnerabilities in code
 # that has not changed. The job "test" is the required check for main. Actions are pinned to commit SHAs on purpose.
 name: ci
@@ -90,9 +90,9 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      packages: write # push to ghcr.io/<owner>/cra-snapshot with the job's own token
+      packages: write # push to ghcr.io/<owner>/shipward-snapshot with the job's own token
     env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/cra-snapshot
+      IMAGE: ghcr.io/${{ github.repository_owner }}/shipward-snapshot
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

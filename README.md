@@ -204,8 +204,8 @@ Push a tag `vX.Y.Z`. `.github/workflows/release.yml` builds `shipward` for Linux
 shipward's own SBOM, writes `SHA256SUMS` and signs it with cosign (keyless, Sigstore). The workflow file says how to
 verify. shipward's own decisions about advisories in its dependencies are in `vex.yaml`.
 
-The snapshot is built once a day by `cra-snapshot` (image `ghcr.io/getshipward/cra-snapshot`). Sources and terms:
-[`docs/data-sources.md`](docs/data-sources.md).
+The snapshot is built once a day by `shipward-snapshot` (image `ghcr.io/getshipward/shipward-snapshot`). Sources and
+terms: [`docs/data-sources.md`](docs/data-sources.md).
 
 ## Develop
 

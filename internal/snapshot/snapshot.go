@@ -1,6 +1,6 @@
 // Package snapshot is the daily, signed copy of public vulnerability data that shipward scan matches against, on the
-// maker's own machine. The builder (cmd/cra-snapshot) publishes it; shipward downloads only the files it needs. Nobody sends
-// package names anywhere: the files are the same for everyone.
+// maker's own machine. The builder (cmd/shipward-snapshot) publishes it; shipward downloads only the files it needs.
+// Nobody sends package names anywhere: the files are the same for everyone.
 //
 // Layout under the base URL:
 //

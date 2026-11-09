@@ -18,7 +18,7 @@ Act (CRA). See `README.md`.
 
 ## Stack
 
-- Go, one module at the repo root. The binary is `cmd/shipward`; the snapshot builder is `cmd/cra-snapshot`.
+- Go, one module at the repo root. The binary is `cmd/shipward`; the snapshot builder is `cmd/shipward-snapshot`.
 - Tests: `go test ./...`. No database.
 
 ## Changes

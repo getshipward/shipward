@@ -1,7 +1,7 @@
 # Vulnerability data sources
 
 `shipward scan` matches an SBOM against a signed snapshot of public vulnerability data, on the maker's own machine. The
-snapshot is built once a day by `cmd/cra-snapshot` and published at `https://data.shipward.dev/v1/`.
+snapshot is built once a day by `cmd/shipward-snapshot` and published at `https://data.shipward.dev/v1/`.
 
 The snapshot passes on only sources whose terms clearly allow passing on filtered data. Each one is named, with its
 licence, in the snapshot index and in the output of `shipward scan` (attribution). Terms checked 6 Nov 2026 from the
@@ -20,7 +20,7 @@ licence files and terms pages.
 | ENISA EUVD (exploited list) | **No**: `shipward` fetches it from ENISA itself, cached 20 h | No data licence; terms unclear |
 | FIRST EPSS | **No**: `shipward` fetches the CSV itself, cached 20 h | No licence; attribution requested; terms unclear |
 
-Any other record source is dropped (`cmd/cra-snapshot/sources.go`).
+Any other record source is dropped (`cmd/shipward-snapshot/sources.go`).
 
 Why a snapshot instead of OSV's own files: passing on the CC-BY data with attribution is allowed, and it keeps
 downloads small (npm: 0.7 MB instead of 210 MB) and signed. Old RubyGems records may carry OSVDB text

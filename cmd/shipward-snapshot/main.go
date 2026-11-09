@@ -1,9 +1,9 @@
-// Command cra-snapshot builds the daily vulnerability snapshot (internal/snapshot) and, with R2 settings, publishes it.
-// It runs once a day. It reads only public data and sends nothing but plain downloads to the sources.
+// Command shipward-snapshot builds the daily vulnerability snapshot (internal/snapshot) and, with R2 settings,
+// publishes it. It runs once a day. It reads only public data and sends nothing but plain downloads to the sources.
 //
-//	SNAPSHOT_SIGNING_KEY=<base64 seed> cra-snapshot -out ./snap            # build only
-//	SNAPSHOT_SIGNING_KEY=... R2_ENDPOINT=... R2_BUCKET=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... cra-snapshot
-//	cra-snapshot -new-key                                                  # print a new key pair
+//	SNAPSHOT_SIGNING_KEY=<base64 seed> shipward-snapshot -out ./snap            # build only
+//	SNAPSHOT_SIGNING_KEY=... R2_ENDPOINT=... R2_BUCKET=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... shipward-snapshot
+//	shipward-snapshot -new-key                                                  # print a new key pair
 package main
 
 import (
