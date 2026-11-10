@@ -9,6 +9,8 @@ ten years after the product is placed on the market, or for the support period i
 
 - **Intended purpose**: {{ or .Product.Purpose "TODO: the intended purpose (`product.purpose` in shipward.yaml)." }}
 - **Versions**: TODO: the software versions that affect conformity with the essential requirements.
+- **Photographs or illustrations** (hardware only, Annex VII point 1(c)): external features, marking and internal
+  layout. Remove this point for software.
 - **Information for users**: [user-information.md](user-information.md).
 - **Product class**: {{ template "class" .Product.Class }}
 
@@ -51,24 +53,62 @@ c. **Production and monitoring**: TODO: how releases are built (for example CI f
 
 ## 3. Cybersecurity risk assessment
 
-TODO: the risks the product is designed against, and how each requirement of Annex I, part I applies. Point (1):
-the product is designed, developed and produced to a level of cybersecurity that suits its risks. Point (2):
+The risk assessment of Article 13(2) and (3). Keep it up to date, where appropriate, at least during the support
+period (Articles 13(3) and 31(2)).
 
-| Requirement (Annex I, part I, point 2) | Applies? | How the product meets it |
+**Last reviewed**: TODO: the date, and who reviewed it.
+
+### Context
+
+- **Intended purpose**: {{ or .Product.Purpose "TODO (`product.purpose` in shipward.yaml)." }}
+- **Reasonably foreseeable use and misuse**: TODO: how people will use the product beyond the intended purpose,
+  including misuse you can foresee.
+- **Conditions of use**: TODO: the operational environment (for example operating systems, networks, online or
+  offline, who else is connected).
+- **Assets to be protected**: TODO: for example user accounts, personal data, payment data, the integrity of the
+  product and of its updates.
+- **Threats**: TODO: who could attack the product, how, and what they would gain.
+- **Expected time in use**: TODO: how long users are expected to use the product. It sets the support period
+  (section 4).
+- **Risks and how they are treated**: TODO: the risks found, and the measures for each. Part I, point (1): the
+  product is designed, developed and produced to ensure an appropriate level of cybersecurity based on these risks.
+
+### Annex I, Part I, point (2): properties of the product
+
+For each requirement, say whether it applies and how the product meets it. Where a requirement does not apply, give
+a clear justification (Article 13(4)).
+
+| Requirement (Annex I, Part I, point (2)): on the basis of the risk assessment and where applicable, products shall | Applies? | How the product meets it | Why it does not apply |
+|---|---|---|---|
+| (a) be made available on the market without known exploitable vulnerabilities | TODO | TODO (`shipward scan` and `shipward triage` before each release) | |
+| (b) be made available on the market with a secure by default configuration, unless otherwise agreed between manufacturer and business user in relation to a tailor-made product, including the possibility to reset the product to its original state | TODO | TODO | |
+| (c) ensure that vulnerabilities can be addressed through security updates, including, where applicable, through automatic security updates that are installed within an appropriate timeframe enabled as a default setting, with a clear and easy-to-use opt-out mechanism, through the notification of available updates to users, and the option to temporarily postpone them | TODO | TODO | |
+| (d) ensure protection from unauthorised access by appropriate control mechanisms, including but not limited to authentication, identity or access management systems, and report on possible unauthorised access | TODO | TODO | |
+| (e) protect the confidentiality of stored, transmitted or otherwise processed data, personal or other, such as by encrypting relevant data at rest or in transit by state of the art mechanisms, and by using other technical means | TODO | TODO | |
+| (f) protect the integrity of stored, transmitted or otherwise processed data, personal or other, commands, programs and configuration against any manipulation or modification not authorised by the user, and report on corruptions | TODO | TODO | |
+| (g) process only data, personal or other, that are adequate, relevant and limited to what is necessary in relation to the intended purpose of the product (data minimisation) | TODO | TODO | |
+| (h) protect the availability of essential and basic functions, also after an incident, including through resilience and mitigation measures against denial-of-service attacks | TODO | TODO | |
+| (i) minimise the negative impact by the products themselves or connected devices on the availability of services provided by other devices or networks | TODO | TODO | |
+| (j) be designed, developed and produced to limit attack surfaces, including external interfaces | TODO | TODO | |
+| (k) be designed, developed and produced to reduce the impact of an incident using appropriate exploitation mitigation mechanisms and techniques | TODO | TODO | |
+| (l) provide security related information by recording and monitoring relevant internal activity, including the access to or modification of data, services or functions, with an opt-out mechanism for the user | TODO | TODO | |
+| (m) provide the possibility for users to securely and easily remove on a permanent basis all data and settings and, where such data can be transferred to other products or systems, ensure that this is done in a secure manner | TODO | TODO | |
+
+### Annex I, Part II: vulnerability handling
+
+How you apply each vulnerability handling requirement (Article 13(3)). These apply to every product. The last column
+names what Shipward makes for it, where it makes something; check that it is true for your product.
+
+| Requirement (Annex I, Part II): manufacturers shall | How you do it | Where it is |
 |---|---|---|
-| (a) No known exploitable vulnerabilities when made available | TODO | TODO (`shipward scan` and `shipward triage` before each release) |
-| (b) Secure by default configuration, and a reset to the original state | TODO | TODO |
-| (c) Vulnerabilities fixed by security updates, automatic where suitable, with an opt-out | TODO | TODO |
-| (d) Protection from unauthorised access (authentication, identity or access management) | TODO | TODO |
-| (e) Confidentiality of stored, sent or processed data (for example encryption) | TODO | TODO |
-| (f) Integrity of data, commands, programs and configuration | TODO | TODO |
-| (g) Only the data needed for the intended purpose | TODO | TODO |
-| (h) Availability of essential functions, also after an incident or a denial-of-service attack | TODO | TODO |
-| (i) Little negative effect on other devices or networks | TODO | TODO |
-| (j) Limited attack surfaces, including external interfaces | TODO | TODO |
-| (k) Exploitation mitigation, to reduce the impact of an incident | TODO | TODO |
-| (l) Recording and monitoring of relevant security activity, with an opt-out | TODO | TODO |
-| (m) Secure, permanent removal of all data and settings, and secure transfer where applicable | TODO | TODO |
+| (1) identify and document vulnerabilities and components contained in products, including by drawing up a software bill of materials in a commonly used and machine-readable format covering at the very least the top-level dependencies of the products | TODO | SBOM `{{ .SBOM }}` (`shipward sbom`, every release); known vulnerabilities from `shipward scan` |
+| (2) in relation to the risks posed to products, address and remediate vulnerabilities without delay, including by providing security updates; where technically feasible, new security updates shall be provided separately from functionality updates | TODO | Decisions `{{ .VEXPath }}` (`shipward triage`), exported as `{{ .VEX }}` |
+| (3) apply effective and regular tests and reviews of the security of the product | TODO | TODO: the tests and reviews; for example `shipward scan` in CI |
+| (4) once a security update has been made available, share and publicly disclose information about fixed vulnerabilities, including a description of the vulnerabilities, information allowing users to identify the product affected, the impacts of the vulnerabilities, their severity and clear and accessible information helping users to remediate the vulnerabilities; in duly justified cases, where manufacturers consider the security risks of publication to outweigh the security benefits, they may delay making public information regarding a fixed vulnerability until after users have been given the possibility to apply the relevant patch | TODO | TODO: where the advisories are published |
+| (5) put in place and enforce a policy on coordinated vulnerability disclosure | TODO | [SECURITY.md](../SECURITY.md) |
+| (6) take measures to facilitate the sharing of information about potential vulnerabilities in their product as well as in third-party components contained in that product, including by providing a contact address for the reporting of the vulnerabilities discovered in the product | TODO | Contact {{ contact .Security.Contact }}; [security.txt](security.txt); SECURITY.md asks for reports on components too |
+| (7) provide for mechanisms to securely distribute updates for products to ensure that vulnerabilities are fixed or mitigated in a timely manner and, where applicable for security updates, in an automatic manner | TODO | TODO: the update mechanism (section 2b) |
+| (8) ensure that, where security updates are available to address identified security issues, they are disseminated without delay and, unless otherwise agreed between a manufacturer and a business user in relation to a tailor-made product, free of charge, accompanied by advisory messages providing users with the relevant information, including on potential action to be taken | TODO | [user-information.md](user-information.md), point 7; TODO: the advisories |
 
 ## 4. Support period
 

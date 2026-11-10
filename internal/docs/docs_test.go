@@ -273,3 +273,49 @@ func TestSimplifiedDeclaration(t *testing.T) {
 		t.Errorf("TODOs = %d", results[0].TODOs)
 	}
 }
+
+func TestRiskAssessment(t *testing.T) {
+	cfg := load(t, "product:\n  name: App\n  purpose: Players play online.\nmanufacturer:\n  name: Maker\n  email: s@example.com\nvex:\n  path: decisions.yaml\n")
+	if _, err := Write(cfg, []string{"technical-documentation"}, false, time.Now(), "shipward test"); err != nil {
+		t.Fatal(err)
+	}
+	td := read(t, cfg, "cra/technical-documentation.md")
+	for _, want := range []string{
+		// Article 13(3): the context of the assessment, and keeping it up to date (Article 31(2)).
+		"**Intended purpose**: Players play online.", "**Reasonably foreseeable use and misuse**: TODO",
+		"**Conditions of use**: TODO", "**Assets to be protected**: TODO", "**Threats**: TODO",
+		"**Expected time in use**: TODO", "**Last reviewed**: TODO", "Articles 13(3) and 31(2)",
+		// Article 13(4): a justification where a requirement does not apply.
+		"| Why it does not apply |", "Article 13(4)",
+		// The law's words, with the duties a summary dropped.
+		"the option to temporarily postpone them", "and report on possible unauthorised access", "and report on corruptions",
+		// Part II, with Shipward's files.
+		"| (1) identify and document vulnerabilities", "SBOM `sbom/sbom.cdx.json`", "Decisions `decisions.yaml`",
+		"exported as `sbom/vex.openvex.json`", "[SECURITY.md](../SECURITY.md)", "Contact s@example.com",
+		"| (8) ensure that, where security updates",
+		// Annex VII 1(c).
+		"**Photographs or illustrations** (hardware only, Annex VII point 1(c))",
+	} {
+		if !strings.Contains(td, want) {
+			t.Errorf("technical documentation lacks %q", want)
+		}
+	}
+	// Every row has the cells of its table's header: four in Part I (letters), three in Part II (numbers).
+	rows := 0
+	for _, line := range strings.Split(td, "\n") {
+		if len(line) < 4 || !strings.HasPrefix(line, "| (") {
+			continue
+		}
+		rows++
+		want := 5
+		if line[3] >= '1' && line[3] <= '9' {
+			want = 4
+		}
+		if n := strings.Count(line, "|"); n != want {
+			t.Errorf("row with %d separators, want %d: %s", n, want, line)
+		}
+	}
+	if rows != 13+8 {
+		t.Errorf("%d requirement rows, want 21", rows)
+	}
+}
