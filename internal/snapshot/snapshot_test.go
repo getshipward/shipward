@@ -273,6 +273,14 @@ func TestEmptyListsAreRefused(t *testing.T) {
 		}
 	}
 
+	// Spaces around the key and the ID are dropped, so the entry matches.
+	os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(`{" CVE-2024-0001 ":{"id":" EUVD-2024-1 "}}`), 0o644)
+	for _, offline := range []bool{false, true} {
+		if d := live(cache, offline).Load(context.Background(), cves); d.EUVD["CVE-2024-0001"].ID != "EUVD-2024-1" || len(d.EUVD) != 1 {
+			t.Errorf("offline=%v: padded copy: %+v", offline, d.EUVD)
+		}
+	}
+
 	// Unusable entries next to a usable one are dropped.
 	os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(`{"CVE-2024-0001":{"id":"EUVD-2024-1"},"CVE-2024-0002":{"id":""}}`), 0o644)
 	if d := live(cache, true).Load(context.Background(), cves); len(d.EUVD) != 1 || d.EUVD["CVE-2024-0001"].ID != "EUVD-2024-1" {

@@ -230,7 +230,11 @@ func facts(f scan.Finding) []string {
 	} else {
 		out = append(out, "no fixed version listed")
 	}
-	if f.KEV != "" {
+	switch f.KEV {
+	case "":
+	case scan.KEVNoDate:
+		out = append(out, "EXPLOITED (CISA KEV)")
+	default:
 		out = append(out, "EXPLOITED (CISA KEV since "+f.KEV+")")
 	}
 	if f.EUVD != "" {

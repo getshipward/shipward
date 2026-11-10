@@ -260,3 +260,17 @@ func TestRunEmptyKEV(t *testing.T) {
 		}
 	}
 }
+
+func TestRunKEVWithoutDate(t *testing.T) {
+	dir, pub := localSnapshotWith(t, time.Now().UTC(), snapshot.Exploited{KEV: map[string]snapshot.KEV{" CVE-2024-0002 ": {}}})
+	bom := &cyclonedx.BOM{Components: &[]cyclonedx.Component{
+		{Type: cyclonedx.ComponentTypeLibrary, Name: "Other", Version: "1.0.0", PackageURL: "pkg:nuget/Other@1.0.0"},
+	}}
+	rep, err := Run(context.Background(), Options{BOM: bom, Snapshot: dir, Keys: []string{pub}, CacheDir: liveCache(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Findings) != 1 || rep.Findings[0].KEV != KEVNoDate || !rep.Findings[0].Exploited() || len(rep.MissingExploitedFeeds()) != 0 {
+		t.Errorf("findings %+v, missing %q; want GHSA-bbbb exploited by its KEV entry without a date", rep.Findings, rep.MissingExploitedFeeds())
+	}
+}

@@ -37,7 +37,8 @@ type Finding struct {
 	CVSS      string   `json:"cvss,omitempty"`
 	Fixed     []string `json:"fixed,omitempty"`
 	URL       string   `json:"url"`
-	// Exploited in the wild, per CISA KEV and/or ENISA EUVD (date or ID), and FIRST's EPSS.
+	// Exploited in the wild, per CISA KEV (the date it was added, or KEVNoDate) and/or ENISA EUVD (its ID), and
+	// FIRST's EPSS.
 	KEV  string         `json:"kev,omitempty"`
 	EUVD string         `json:"euvd,omitempty"`
 	EPSS *snapshot.EPSS `json:"epss,omitempty"`
@@ -55,6 +56,9 @@ func (f Finding) NeedsWork() bool { return !vex.Final(f.State) }
 
 // IDs returns the advisory ID and its aliases.
 func (f Finding) IDs() []string { return append([]string{f.ID}, f.Aliases...) }
+
+// KEVNoDate is Finding.KEV for an advisory on CISA's list whose entry has no date: being on the list is what counts.
+const KEVNoDate = "listed"
 
 // Names of the feeds in Report.Feeds.
 const (
@@ -192,7 +196,7 @@ func Run(ctx context.Context, o Options) (*Report, error) {
 	// The catalog is never empty: a list without one CVE ID means a broken snapshot.
 	usableKEV := map[string]snapshot.KEV{}
 	for id, k := range data.Exploited.KEV {
-		if snapshot.ValidCVE(id) {
+		if id = strings.TrimSpace(id); snapshot.ValidCVE(id) {
 			usableKEV[id] = k
 		}
 	}
@@ -280,7 +284,10 @@ func newFinding(t target, v *osv.Vulnerability, ex snapshot.Exploited) Finding {
 	// Every ID of the advisory, not only CVEs: ENISA also lists GHSA and its own EUVD IDs.
 	for _, id := range f.IDs() {
 		if k, ok := ex.KEV[id]; ok && f.KEV == "" {
-			f.KEV = k.Added
+			f.KEV = strings.TrimSpace(k.Added)
+			if f.KEV == "" {
+				f.KEV = KEVNoDate
+			}
 		}
 		if e, ok := ex.EUVD[id]; ok && f.EUVD == "" {
 			f.EUVD = e.ID

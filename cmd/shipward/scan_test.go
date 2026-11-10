@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/getshipward/shipward/internal/osv"
+	"github.com/getshipward/shipward/internal/scan"
 	"github.com/getshipward/shipward/internal/snapshot"
 )
 
@@ -272,6 +273,14 @@ func TestShellQuote(t *testing.T) {
 	} {
 		if got := shellQuote(in); got != want {
 			t.Errorf("shellQuote(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
+
+func TestFactsKEV(t *testing.T) {
+	for kev, want := range map[string]string{"2026-11-01": "EXPLOITED (CISA KEV since 2026-11-01)", scan.KEVNoDate: "EXPLOITED (CISA KEV)"} {
+		if got := strings.Join(facts(scan.Finding{KEV: kev}), "; "); !strings.Contains(got, want) || strings.Contains(got, "since "+scan.KEVNoDate) {
+			t.Errorf("facts(KEV %q) = %q", kev, got)
 		}
 	}
 }

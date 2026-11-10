@@ -56,11 +56,13 @@ var cveID = regexp.MustCompile(`^CVE-[0-9]{4}-[0-9]{4,}$`)
 // ValidCVE reports whether s is a CVE ID (CVE-YYYY-NNNN, four or more digits).
 func ValidCVE(s string) bool { return cveID.MatchString(s) }
 
-// UsableEUVD returns the entries of an ENISA list that can mark an advisory: a non-blank key and a non-blank EUVD ID.
+// UsableEUVD returns the entries of an ENISA list that can mark an advisory: a non-blank key and a non-blank EUVD ID,
+// both without surrounding spaces, so the key matches an advisory's ID.
 func UsableEUVD(m map[string]EUVD) map[string]EUVD {
 	out := make(map[string]EUVD, len(m))
 	for k, e := range m {
-		if strings.TrimSpace(k) != "" && strings.TrimSpace(e.ID) != "" {
+		k, e.ID = strings.TrimSpace(k), strings.TrimSpace(e.ID)
+		if k != "" && e.ID != "" {
 			out[k] = e
 		}
 	}
