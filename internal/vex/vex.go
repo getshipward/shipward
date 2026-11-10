@@ -41,7 +41,8 @@ const Header = `# Decisions about advisories that name a component of this produ
 # advisory; shipward triage export writes them as OpenVEX. Add or change entries with shipward triage set, or by hand.
 # status: not_affected (needs justification or impact), affected (needs action), fixed (then record fixed_in and
 # advisory: the version with the update and where its advisory is published), under_investigation.
-# component: a purl with @version, or without it for every version.
+# component: a purl with @version, or without it for every version. date: YYYY-MM-DD or an RFC 3339 time.
+# upstream (optional): reported (date), link, fix_shared: what you told the component's maintainer (CRA Art. 13(6)).
 `
 
 // Statement is one decision.
@@ -53,17 +54,35 @@ type Statement struct {
 	Impact        string `yaml:"impact,omitempty"` // why it does not affect the product (not_affected)
 	Action        string `yaml:"action,omitempty"` // what users should do (affected)
 	By            string `yaml:"by,omitempty"`
-	Date          string `yaml:"date"` // YYYY-MM-DD
+	Date          string `yaml:"date"` // YYYY-MM-DD, or an RFC 3339 time
 	// FixedIn and Advisory are for fixed: the product version that carries the security update, and where the advisory
 	// about the fixed vulnerability is published (CRA Annex I Part II(4), (8)). OpenVEX does not need them; the CRA does.
 	FixedIn  string `yaml:"fixed_in,omitempty"`
 	Advisory string `yaml:"advisory,omitempty"`
+	// Upstream records that the vulnerability was reported to the component's maintainer, and whether the maker's own
+	// fix was shared with them (CRA Art. 13(6)).
+	Upstream *Upstream `yaml:"upstream,omitempty"`
 }
 
 // NeedsAdvisory reports whether a fixed decision does not record the update and the advisory yet. The OpenVEX decision
 // is final, but the CRA asks to publish an advisory once the security update is available (Annex I Part II(4)).
 func (s Statement) NeedsAdvisory() bool {
 	return s.Status == Fixed && (s.FixedIn == "" || s.Advisory == "")
+}
+
+// Upstream is what the maker told the person or project that maintains the component (CRA Art. 13(6)).
+type Upstream struct {
+	Reported  string `yaml:"reported,omitempty"`   // date (YYYY-MM-DD or RFC 3339) the maintainer was told
+	Link      string `yaml:"link,omitempty"`       // the report, issue or advisory
+	FixShared bool   `yaml:"fix_shared,omitempty"` // the maker's fix (code or documentation) was shared
+}
+
+// Time reads a statement's date: YYYY-MM-DD (midnight UTC) or RFC 3339.
+func Time(s string) (time.Time, error) {
+	if t, err := time.Parse(time.DateOnly, s); err == nil {
+		return t, nil
+	}
+	return time.Parse(time.RFC3339, s)
 }
 
 // Validate checks one statement against the OpenVEX rules.
@@ -100,8 +119,18 @@ func (s Statement) Validate() error {
 	if s.Advisory != "" && !strings.HasPrefix(s.Advisory, "https://") && !strings.HasPrefix(s.Advisory, "http://") {
 		errs = append(errs, fmt.Errorf("advisory %q is not a URL (https://...)", s.Advisory))
 	}
-	if _, err := time.Parse(time.DateOnly, s.Date); err != nil {
-		errs = append(errs, fmt.Errorf("date %q is not YYYY-MM-DD", s.Date))
+	if _, err := Time(s.Date); err != nil {
+		errs = append(errs, fmt.Errorf("date %q is not YYYY-MM-DD or an RFC 3339 time", s.Date))
+	}
+	if u := s.Upstream; u != nil {
+		if u.Reported != "" {
+			if _, err := Time(u.Reported); err != nil {
+				errs = append(errs, fmt.Errorf("upstream.reported %q is not YYYY-MM-DD or an RFC 3339 time", u.Reported))
+			}
+		}
+		if u.Link != "" && !strings.HasPrefix(u.Link, "https://") && !strings.HasPrefix(u.Link, "http://") {
+			errs = append(errs, fmt.Errorf("upstream.link %q is not an http(s) URL", u.Link))
+		}
 	}
 	return errors.Join(errs...)
 }
