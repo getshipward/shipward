@@ -5,6 +5,7 @@
 **{{ if .FinalLatest }}One month after the incident notification is submitted, at the latest {{ when .Due.Final }}{{ else }}At the latest {{ when .Due.Final }}{{ end }}** (CRA Article 14(4)(c)).
 {{- if .FinalLatest }} The notification is not recorded yet: this date is one month after its 72-hour deadline, and it
 moves earlier when you record the notification with `shipward report done {{ .ID }} notification`.{{ end }}
+{{- if and (not .FinalLatest) .FinalHint }} Note: {{ sentence .FinalHint }}{{ end }}
 {{- else -}}
 **{{ if .Due.Final.IsZero }}At the latest 14 days after a corrective or mitigating measure is available (record it with `shipward report fixed {{ .ID }}`){{ else }}At the latest {{ when .Due.Final }}{{ end }}** (CRA Article 14(2)(c)).
 {{- with .FinalHint }} Note: {{ sentence . }}{{ end }}

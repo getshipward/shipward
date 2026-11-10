@@ -173,6 +173,15 @@ func TestIntermediateSkippedAndNext(t *testing.T) {
 	if d, _ := inc.Deadline(Final); !d.Due.Equal(time.Date(2026, 12, 1, 12, 0, 0, 0, cet)) || d.Hint == "" {
 		t.Errorf("final after a skipped notification = %+v, want 1 Dec 12:00 (a month after the early warning)", d)
 	}
+	dir := t.TempDir()
+	cfg := &config.Config{Product: config.Product{Name: "P"}, Manufacturer: config.Manufacturer{Name: "M"}}
+	if _, err := WriteDrafts(dir, "id", &inc, cfg, false, cet, "shipward test"); err != nil {
+		t.Fatal(err)
+	}
+	if final, _ := os.ReadFile(filepath.Join(dir, "final.md")); !strings.Contains(string(final), "At the latest Tue 1 Dec 2026 12:00 CET") ||
+		!strings.Contains(string(final), "Note: the notification was skipped, so the month counts from the early warning.") {
+		t.Errorf("final draft after a skipped notification:\n%s", final)
+	}
 	delete(inc.Skipped, Notification)
 	if d, _ := inc.Deadline(Final); !d.Due.Equal(time.Date(2026, 12, 11, 9, 0, 0, 0, cet)) || d.Hint != "" {
 		t.Errorf("final after a sent notification = %+v", d)
