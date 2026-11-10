@@ -276,8 +276,12 @@ func TestSimplifiedDeclaration(t *testing.T) {
 
 func TestRiskAssessment(t *testing.T) {
 	cfg := load(t, "product:\n  name: App\n  purpose: Players play online.\nmanufacturer:\n  name: Maker\n  email: s@example.com\nvex:\n  path: decisions.yaml\n")
-	if _, err := Write(cfg, []string{"technical-documentation"}, false, time.Now(), "shipward test"); err != nil {
+	if _, err := Write(cfg, []string{"technical-documentation", "user-information"}, false, time.Now(), "shipward test"); err != nil {
 		t.Fatal(err)
+	}
+	// The Part II(8) row points to this point of the user information.
+	if !strings.Contains(read(t, cfg, "cra/user-information.md"), "\n## 7. Security support\n") {
+		t.Error("user-information.md has no point 7 Security support, which the technical documentation points to")
 	}
 	td := read(t, cfg, "cra/technical-documentation.md")
 	for _, want := range []string{
