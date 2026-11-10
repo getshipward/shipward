@@ -44,7 +44,8 @@ func (f *Fetcher) KEV(ctx context.Context, url string) (map[string]KEV, error) {
 	return out, nil
 }
 
-// EUVD reads ENISA's exploited vulnerabilities, keyed by CVE.
+// EUVD reads ENISA's exploited vulnerabilities, keyed by every ID ENISA lists for an entry: its own EUVD ID and its
+// aliases (CVE, GHSA and others), so an advisory without a CVE alias still matches.
 func (f *Fetcher) EUVD(ctx context.Context, url string) (map[string]EUVD, error) {
 	out := map[string]EUVD{}
 	for page := 0; ; page++ {
@@ -61,9 +62,10 @@ func (f *Fetcher) EUVD(ctx context.Context, url string) (map[string]EUVD, error)
 			return nil, fmt.Errorf("page %d: %w", page, err)
 		}
 		for _, it := range res.Items {
-			for _, alias := range strings.Fields(it.Aliases) {
-				if strings.HasPrefix(alias, "CVE-") {
-					out[alias] = EUVD{ID: it.ID, ExploitedSince: euvdDate(it.ExploitedSince)}
+			e := EUVD{ID: it.ID, ExploitedSince: euvdDate(it.ExploitedSince)}
+			for _, id := range append([]string{it.ID}, strings.Fields(it.Aliases)...) {
+				if id != "" {
+					out[id] = e
 				}
 			}
 		}

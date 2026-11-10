@@ -100,6 +100,9 @@ func TestBuildAndLoad(t *testing.T) {
 	if ex := d.Exploited; ex.KEV["CVE-2024-0001"].Added != "2026-11-01" || ex.EUVD != nil || ex.EPSS != nil {
 		t.Errorf("exploited = %+v; want KEV only (EUVD and EPSS are not passed on)", ex)
 	}
+	if want := d.Index.Created.Add(Validity); !d.Index.Expires.Equal(want) {
+		t.Errorf("expires = %s, want %s", d.Index.Expires, want)
+	}
 	if len(d.Index.Sources) != 1 || d.Index.Sources[0].Name != "GHSA" {
 		t.Errorf("sources = %+v", d.Index.Sources)
 	}
@@ -200,17 +203,29 @@ func TestLive(t *testing.T) {
 	if len(d.Warnings) != 0 || d.EUVD["CVE-2024-0001"].ExploitedSince != "2026-11-04" || d.EPSS["CVE-2024-0001"].Score != 0.5 || d.EPSSDate != "2026-11-06T12:55:00Z" {
 		t.Fatalf("live = %+v", d)
 	}
+	// ENISA's own ID and every alias find the entry, not only the CVE.
+	for _, id := range []string{"EUVD-2024-1", "GHSA-aaaa"} {
+		if d.EUVD[id].ID != "EUVD-2024-1" {
+			t.Errorf("EUVD[%s] = %+v", id, d.EUVD[id])
+		}
+	}
+	if !d.EUVDFetched.Equal(now) || !d.EPSSFetched.Equal(now) {
+		t.Errorf("fetched %s, %s; want %s", d.EUVDFetched, d.EPSSFetched, now)
+	}
 	if _, ok := d.EPSS["CVE-2024-9999"]; ok {
 		t.Error("EPSS keeps a CVE nobody asked for")
 	}
 	first := requests
-	l.Load(context.Background(), cves)
+	l.Now = func() time.Time { return now.Add(time.Hour) }
+	if d := l.Load(context.Background(), cves); d.EUVDFetched.After(now.Add(time.Minute)) {
+		t.Errorf("cached copy: fetched %s; want the time of the first fetch", d.EUVDFetched)
+	}
 	if requests != first {
 		t.Errorf("second load made %d requests; want the cached copies", requests-first)
 	}
 
 	offline := &Live{CacheDir: t.TempDir(), Offline: true, Now: time.Now}
-	if d := offline.Load(context.Background(), cves); len(d.Warnings) != 2 || d.EUVD != nil {
+	if d := offline.Load(context.Background(), cves); len(d.Warnings) != 2 || d.EUVD != nil || d.EPSS != nil {
 		t.Errorf("offline without cache = %+v", d)
 	}
 }

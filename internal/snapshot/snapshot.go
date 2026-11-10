@@ -32,9 +32,15 @@ const DefaultURL = "https://data.shipward.dev/v1/"
 type Index struct {
 	Format  int       `json:"format"`
 	Created time.Time `json:"created"`
+	// Expires is when the builder no longer stands behind this snapshot. A snapshot is made daily, so an expired one
+	// means the builder stopped, or something holds new ones back. Older indexes have none (the zero time).
+	Expires time.Time `json:"expires,omitzero"`
 	Files   []File    `json:"files"`
 	Sources []Source  `json:"sources"`
 }
+
+// Validity is how long after Created a snapshot expires.
+const Validity = 7 * 24 * time.Hour
 
 // File is one data file. Kind is "osv" (records of one ecosystem) or "exploited".
 type File struct {
@@ -54,8 +60,8 @@ type Source struct {
 	Note    string `json:"note,omitempty"`
 }
 
-// Exploited is the content of exploited.json.gz, keyed by CVE ID. EUVD and EPSS are filled by shipward from the sources
-// directly (Live), never from the snapshot.
+// Exploited is the content of exploited.json.gz. KEV and EPSS are keyed by CVE ID, EUVD by every ID ENISA lists (its
+// own, CVE, GHSA, ...). EUVD and EPSS are filled by shipward from the sources directly (Live), never from the snapshot.
 type Exploited struct {
 	KEV      map[string]KEV  `json:"kev"`
 	EUVD     map[string]EUVD `json:"euvd,omitempty"`

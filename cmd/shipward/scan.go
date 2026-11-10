@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/getshipward/shipward/internal/config"
 	"github.com/getshipward/shipward/internal/scan"
@@ -70,6 +72,12 @@ func runScan(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	summary := fs.String("summary", "", `also append a Markdown summary to this file (in GitHub Actions: "$GITHUB_STEP_SUMMARY")`)
 	failOn := fs.String("fail-on", "none", "exit 3 when: none, open (an advisory without a final decision) or exploited (such an advisory is known to be exploited)")
 	all := fs.Bool("all", false, "name every component that could not be checked")
+	var maxAge time.Duration
+	fs.Func("max-age", "exit 1 when the snapshot or a feed copy is older than this (e.g. 36h, 3d); default no limit", func(v string) error {
+		d, err := parseAge(v)
+		maxAge = d
+		return err
+	})
 	if err := parse(fs, args); err != nil {
 		return 2
 	}
@@ -116,12 +124,74 @@ func runScan(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
+	if maxAge > 0 {
+		if old := rep.OlderThan(maxAge, time.Now()); len(old) > 0 {
+			fmt.Fprintf(stderr, "shipward scan: data older than --max-age %s: %s\n", maxAge, strings.Join(old, "; "))
+			return 1
+		}
+	}
+	if missing := rep.MissingExploitedFeeds(); *failOn == "exploited" && len(missing) > 0 {
+		fmt.Fprintf(stderr, "shipward scan: --fail-on exploited cannot be checked: %s could not be loaded (see the warnings)\n",
+			strings.Join(missing, " and "))
+		return 1
+	}
 	for _, f := range rep.Findings {
 		if f.NeedsWork() && (*failOn == "open" || (*failOn == "exploited" && f.Exploited())) {
 			return exitFindings
 		}
 	}
 	return 0
+}
+
+// parseAge reads a Go duration (36h) or a number of days (3d).
+func parseAge(s string) (time.Duration, error) {
+	if n, ok := strings.CutSuffix(s, "d"); ok {
+		days, err := strconv.Atoi(n)
+		if err != nil || days <= 0 {
+			return 0, fmt.Errorf("%q is not a number of days", s)
+		}
+		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("%q is not a duration (36h, 3d)", s)
+	}
+	return d, nil
+}
+
+// reportHint is printed under an advisory that CISA or ENISA list as exploited and that has no final decision. Such a
+// listing alone is not a case to report; the maker decides whether the vulnerability is actively exploited in their
+// product (CRA Art. 3(42), 14(1)).
+func reportHint(f scan.Finding) []string {
+	purl := plainPURL(f.PURL, true)
+	return []string{
+		"Known to be exploited somewhere. That alone is not a case to report: decide whether it is actively exploited",
+		"in your product (CRA Art. 3(42), 14(1)). If it is, the 24-hour early warning may already be due:",
+		fmt.Sprintf("  shipward report new vulnerability --title %s --advisory %s --component %s",
+			shellQuote(f.ID+" in "+f.Component), f.ID, purl),
+		"  (add --aware TIME if you knew before now)",
+	}
+}
+
+// shellQuote quotes s for a POSIX shell.
+func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
+// feedText says where the exploitation data came from and how old it is.
+func feedText(rep *scan.Report) string {
+	var parts []string
+	for _, f := range rep.Feeds {
+		switch {
+		case !f.Used:
+			parts = append(parts, f.Name+" (not available)")
+		case f.Name == scan.FeedKEV:
+			parts = append(parts, f.Name+" (in the snapshot)")
+		case f.Date.IsZero():
+			parts = append(parts, f.Name)
+		default:
+			parts = append(parts, fmt.Sprintf("%s (fetched %s ago)", f.Name, scan.Age(time.Since(f.Date))))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // counts returns how many findings need work and how many are closed.
@@ -177,8 +247,8 @@ func decisionText(f scan.Finding) string {
 }
 
 func printText(w io.Writer, rep *scan.Report, all bool) {
-	fmt.Fprintf(w, "%s: %d components checked against the vulnerability snapshot of %s\n", rep.SBOM, rep.Checked,
-		rep.Snapshot.Format("2006-01-02 15:04 MST"))
+	fmt.Fprintf(w, "%s: %d components checked against the vulnerability snapshot of %s (%s old)\n", rep.SBOM, rep.Checked,
+		rep.Snapshot.Format("2006-01-02 15:04 MST"), scan.Age(time.Since(rep.Snapshot)))
 	for _, warn := range rep.Warnings {
 		fmt.Fprintf(w, "warning: %s\n", warn)
 	}
@@ -192,7 +262,13 @@ func printText(w io.Writer, rep *scan.Report, all bool) {
 		if f.Summary != "" {
 			fmt.Fprintf(w, "    %s\n", f.Summary)
 		}
-		fmt.Fprintf(w, "    %s\n    decision: %s\n    %s\n\n", strings.Join(facts(f), "; "), decisionText(f), f.URL)
+		fmt.Fprintf(w, "    %s\n    decision: %s\n    %s\n", strings.Join(facts(f), "; "), decisionText(f), f.URL)
+		if f.Exploited() && f.NeedsWork() {
+			for _, line := range reportHint(f) {
+				fmt.Fprintf(w, "    %s\n", line)
+			}
+		}
+		fmt.Fprintln(w)
 	}
 
 	open, closed := counts(rep)
@@ -211,6 +287,7 @@ func printText(w io.Writer, rep *scan.Report, all bool) {
 		fmt.Fprintf(w, "Not checked (no package URL of a known ecosystem): %s\n", listNames(rep.NotChecked, all))
 	}
 	fmt.Fprintln(w, "An advisory that names a version does not prove the product is affected: a person decides that.")
+	fmt.Fprintf(w, "Exploitation data: %s.\n", feedText(rep))
 	if len(rep.Sources) > 0 {
 		fmt.Fprintf(w, "Data: %s.\n", sourceNames(rep.Sources))
 	}
@@ -219,7 +296,8 @@ func printText(w io.Writer, rep *scan.Report, all bool) {
 func printMarkdown(w io.Writer, rep *scan.Report) {
 	open, closed := counts(rep)
 	fmt.Fprintf(w, "### Vulnerability scan\n\n")
-	fmt.Fprintf(w, "%d components checked against the snapshot of %s. ", rep.Checked, rep.Snapshot.Format("2006-01-02 15:04 MST"))
+	fmt.Fprintf(w, "%d components checked against the snapshot of %s (%s old). ", rep.Checked,
+		rep.Snapshot.Format("2006-01-02 15:04 MST"), scan.Age(time.Since(rep.Snapshot)))
 	if open+closed == 0 {
 		fmt.Fprintf(w, "No advisory names these component versions.\n\n")
 	} else {
@@ -252,14 +330,25 @@ func printMarkdown(w io.Writer, rep *scan.Report) {
 		}
 		fmt.Fprintln(w)
 	}
+	exploited := 0
+	for _, f := range rep.Findings {
+		if f.Exploited() && f.NeedsWork() {
+			exploited++
+		}
+	}
+	if exploited > 0 {
+		fmt.Fprintf(w, "Known to be exploited somewhere, without a final decision: **%d**. That alone is not a case to report: "+
+			"decide for each whether it is actively exploited in your product (CRA Art. 3(42), 14(1)). If it is, the 24-hour "+
+			"early warning may already be due: `shipward report new vulnerability` (`shipward scan` prints the full command).\n\n", exploited)
+	}
 	if len(rep.Unused) > 0 {
 		fmt.Fprintf(w, "%d decision(s) in vex.yaml match no advisory now.\n\n", len(rep.Unused))
 	}
 	if len(rep.NotChecked) > 0 {
 		fmt.Fprintf(w, "Not checked (no package URL of a known ecosystem): %d components.\n\n", len(rep.NotChecked))
 	}
-	fmt.Fprintf(w, "An advisory that names a version does not prove the product is affected: a person decides that. Data: %s.\n\n",
-		md(sourceNames(rep.Sources)))
+	fmt.Fprintf(w, "An advisory that names a version does not prove the product is affected: a person decides that. "+
+		"Exploitation data: %s. Data: %s.\n\n", md(feedText(rep)), md(sourceNames(rep.Sources)))
 }
 
 // md makes text safe inside a Markdown table cell.
