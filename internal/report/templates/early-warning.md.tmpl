@@ -1,7 +1,7 @@
 <!-- {{ .Note }} -->
 # Early warning: {{ .Case.Title }}
 
-**Due {{ when .Due.EarlyWarning }}** (24 hours after becoming aware, {{ when .Case.Aware }}; CRA Article 14(2)(a){{ if .IsIncident }}, 14(4)(a){{ end }}).
+**Due {{ when .Due.EarlyWarning }}** (24 hours after becoming aware, {{ when .Case.Aware }}; CRA Article {{ if .IsIncident }}14(4)(a){{ else }}14(2)(a){{ end }}).
 Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIRT coordinator (`reports.csirt` in shipward.yaml)" }}. Then run
 `shipward report done {{ .ID }} early-warning`.
 

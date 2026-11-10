@@ -17,11 +17,14 @@ const reportUsage = `usage:
   shipward report [--fail-on overdue]                     open cases: the next report, its deadline, the time left
   shipward report new vulnerability|incident --title T --aware TIME [--advisory ID] [--component PURL] [--version V]
                                                      open a case and write the drafts
-  shipward report fixed CASE [--at TIME]                  a corrective or mitigating measure is available (starts the 14 days)
+  shipward report fixed CASE [--at TIME]                  vulnerability: a corrective or mitigating measure is available
+                                                     (starts the 14 days; it may be before you became aware)
   shipward report done CASE STAGE [--at TIME]             STAGE was submitted: early-warning, notification, final, users
+                                                     (the reports in this order; not before aware, not in the future)
   shipward report drafts CASE [--force]                   write the drafts again from report.yaml
 
-TIME is RFC 3339 (2026-11-06T14:00:00+01:00) or "2026-11-06 14:00" in local time; default now.
+TIME is RFC 3339 (2026-11-06T14:00:00+01:00) or "2026-11-06 14:00" in local time; default now. report.yaml reads
+times without an offset as local time too.
 Reports go to your CSIRT coordinator through ENISA's single reporting platform; a person submits them there.
 `
 
@@ -65,6 +68,10 @@ func reportList(args []string, stdout, stderr io.Writer, now time.Time) int {
 	if err := parse(fs, args); err != nil {
 		return 2
 	}
+	if *failOn != "none" && *failOn != "overdue" {
+		fmt.Fprintf(stderr, "shipward report: unknown --fail-on %q (none, overdue)\n", *failOn)
+		return 2
+	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
 		fmt.Fprintf(stderr, "shipward report: %v\n", err)
@@ -78,7 +85,7 @@ func reportList(args []string, stdout, stderr io.Writer, now time.Time) int {
 	}
 	overdue, shown := false, 0
 	for _, id := range ids {
-		c, err := report.Load(filepath.Join(dir, id))
+		c, err := report.Load(filepath.Join(dir, id), time.Local)
 		if err != nil {
 			fmt.Fprintf(stderr, "shipward report: %v\n", err)
 			return 1
@@ -107,19 +114,25 @@ func reportList(args []string, stdout, stderr io.Writer, now time.Time) int {
 }
 
 func stageStatus(d report.Deadline, c *report.Case, id string, now time.Time) string {
+	var s string
 	switch {
 	case !d.Done.IsZero():
 		return "sent " + report.When(d.Done, time.Local)
 	case d.Due.IsZero() && d.Stage == report.Final && c.Type == report.Vulnerability:
 		return "due 14 days after a fix is available (shipward report fixed " + id + ")"
-	case d.Due.IsZero() && d.Stage == report.Final:
-		return "due one month after the notification is submitted"
 	case d.Due.IsZero():
 		return "as soon as you can: " + d.Why
 	case now.After(d.Due):
-		return fmt.Sprintf("OVERDUE by %s (was due %s)", span(now.Sub(d.Due)), report.When(d.Due, time.Local))
+		s = fmt.Sprintf("OVERDUE by %s (was due %s)", span(now.Sub(d.Due)), report.When(d.Due, time.Local))
+	case d.Latest:
+		s = fmt.Sprintf("due at the latest %s, in %s", report.When(d.Due, time.Local), span(d.Due.Sub(now)))
+	default:
+		s = fmt.Sprintf("due %s, in %s", report.When(d.Due, time.Local), span(d.Due.Sub(now)))
 	}
-	return fmt.Sprintf("due %s, in %s", report.When(d.Due, time.Local), span(d.Due.Sub(now)))
+	if d.Hint != "" {
+		s += "; " + d.Hint
+	}
+	return s
 }
 
 // span writes a duration as days, hours and minutes.
@@ -232,21 +245,48 @@ func reportMark(kind string, args []string, stdout, stderr io.Writer, now time.T
 			fmt.Fprintf(stderr, "shipward report %s: %v\n", kind, err)
 			return 2
 		}
+		if at.After(now.Add(time.Minute)) {
+			fmt.Fprintf(stderr, "shipward report %s: --at is in the future\n", kind)
+			return 2
+		}
 	}
 	id := fs.Arg(0)
 	dir := filepath.Join(cfg.Resolve(cfg.Reports.Dir), id)
-	c, err := report.Load(dir)
+	c, err := report.Load(dir, time.Local)
 	if err != nil {
 		fmt.Fprintf(stderr, "shipward report %s: %v\n", kind, err)
 		return 1
 	}
 	if kind == "fixed" {
+		if c.Type == report.Incident {
+			fmt.Fprintf(stderr, "shipward report fixed: %s is an incident; its final report is due one month after the notification, not after a fix\n", id)
+			return 2
+		}
+		// A fix before awareness is allowed: an exploited flaw may be fixed in a newer release already.
 		c.FixAvailable = &at
 	} else {
 		stage := fs.Arg(1)
 		if report.DraftFile(stage) == "" {
 			fmt.Fprintf(stderr, "shipward report done: unknown stage %q (%s)\n", stage, strings.Join(report.Stages, ", "))
 			return 2
+		}
+		if at.Before(c.Aware) {
+			fmt.Fprintf(stderr, "shipward report done: --at %s is before you became aware (%s)\n",
+				report.When(at, time.Local), report.When(c.Aware, time.Local))
+			return 2
+		}
+		if prev := report.Previous(stage); prev != "" {
+			sent, ok := c.Submitted[prev]
+			switch {
+			case !ok:
+				fmt.Fprintf(stderr, "shipward report done: record the %s first (shipward report done %s %s --at TIME);\n"+
+					"if you sent both together, record both with the same time\n", prev, id, prev)
+				return 2
+			case at.Before(sent):
+				fmt.Fprintf(stderr, "shipward report done: --at %s is before the %s was sent (%s)\n",
+					report.When(at, time.Local), prev, report.When(sent, time.Local))
+				return 2
+			}
 		}
 		if c.Submitted == nil {
 			c.Submitted = map[string]time.Time{}
@@ -285,7 +325,7 @@ func reportDrafts(args []string, stdout, stderr io.Writer) int {
 	}
 	id := fs.Arg(0)
 	dir := filepath.Join(cfg.Resolve(cfg.Reports.Dir), id)
-	c, err := report.Load(dir)
+	c, err := report.Load(dir, time.Local)
 	if err != nil {
 		fmt.Fprintf(stderr, "shipward report drafts: %v\n", err)
 		return 1
