@@ -85,15 +85,19 @@ type Report struct {
 	SBOM     string    `json:"sbom"`
 	Snapshot time.Time `json:"snapshot"`
 	// SnapshotAgeHours is the snapshot's age at scan time; SnapshotExpires is when its builder stops standing behind it.
-	SnapshotAgeHours float64           `json:"snapshot_age_hours"`
-	SnapshotExpires  time.Time         `json:"snapshot_expires,omitzero"`
-	Feeds            []Feed            `json:"feeds"`
-	Warnings         []string          `json:"warnings,omitempty"`
-	Checked          int               `json:"checked"`
-	NotChecked       []string          `json:"not_checked,omitempty"`
-	Findings         []Finding         `json:"findings"`
-	Unused           []vex.Statement   `json:"unused_decisions,omitempty"`
-	Sources          []snapshot.Source `json:"sources"`
+	SnapshotAgeHours float64   `json:"snapshot_age_hours"`
+	SnapshotExpires  time.Time `json:"snapshot_expires,omitzero"`
+	Feeds            []Feed    `json:"feeds"`
+	Warnings         []string  `json:"warnings,omitempty"`
+	// Components is how many components the SBOM lists (without file listings); Checked how many distinct packages
+	// were matched; NotChecked the components that could not be, because they have no package URL of an ecosystem
+	// shipward matches (osv.Ecosystems).
+	Components int               `json:"components"`
+	Checked    int               `json:"checked"`
+	NotChecked []string          `json:"not_checked,omitempty"`
+	Findings   []Finding         `json:"findings"`
+	Unused     []vex.Statement   `json:"unused_decisions,omitempty"`
+	Sources    []snapshot.Source `json:"sources"`
 }
 
 // Options configure a scan.
@@ -128,7 +132,8 @@ func Run(ctx context.Context, o Options) (*Report, error) {
 	var notChecked []string
 	ecosystems := map[string]bool{}
 	seen := map[string]bool{}
-	for _, c := range Components(o.BOM) {
+	comps := Components(o.BOM)
+	for _, c := range comps {
 		p, v, ok := osv.FromPURL(c.PackageURL)
 		if !ok {
 			notChecked = append(notChecked, Label(c))
@@ -180,7 +185,7 @@ func Run(ctx context.Context, o Options) (*Report, error) {
 
 	at := now()
 	rep := &Report{SBOM: o.SBOM, Snapshot: data.Index.Created, SnapshotExpires: data.Index.Expires,
-		SnapshotAgeHours: hours(at.Sub(data.Index.Created)), Checked: len(targets), NotChecked: notChecked,
+		SnapshotAgeHours: hours(at.Sub(data.Index.Created)), Components: len(comps), Checked: len(targets), NotChecked: notChecked,
 		Findings: []Finding{}, Sources: data.Index.Sources}
 	if data.Warning != "" {
 		rep.Warnings = append(rep.Warnings, data.Warning)

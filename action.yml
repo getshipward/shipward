@@ -27,7 +27,7 @@ inputs:
     description: Match the SBOM against the vulnerability snapshot.
     default: "true"
   fail-on:
-    description: Fail the job when an advisory has no final decision (open), or when such an advisory is known to be exploited (exploited). Default none.
+    description: Fail the job when an advisory has no final decision (open), when such an advisory is known to be exploited (exploited), or when a component could not be checked (unchecked). Several with commas, e.g. "exploited,unchecked". Default none.
     default: none
   export-vex:
     description: Write the OpenVEX document when vex.yaml exists.
@@ -55,6 +55,9 @@ outputs:
   exploited:
     description: Of those, the ones known to be exploited (CISA KEV or ENISA EUVD).
     value: ${{ steps.scan.outputs.exploited }}
+  unchecked:
+    description: Components that could not be checked for known vulnerabilities (no package URL of a supported ecosystem).
+    value: ${{ steps.scan.outputs.unchecked }}
   shipward:
     description: Path to the shipward binary the action built, for more shipward commands in later steps (for example one SBOM per installer).
     value: ${{ steps.build.outputs.shipward }}
@@ -117,12 +120,14 @@ runs:
         if [ -s "$RUNNER_TEMP/shipward-scan.json" ]; then
           open=$(jq '[.findings[] | select(.state != "not_affected" and .state != "fixed")] | length' "$RUNNER_TEMP/shipward-scan.json")
           exploited=$(jq '[.findings[] | select(.state != "not_affected" and .state != "fixed") | select(.kev or .euvd)] | length' "$RUNNER_TEMP/shipward-scan.json")
+          unchecked=$(jq '.not_checked // [] | length' "$RUNNER_TEMP/shipward-scan.json")
           echo "open=$open" >> "$GITHUB_OUTPUT"
           echo "exploited=$exploited" >> "$GITHUB_OUTPUT"
-          echo "Advisories without a final decision: $open (known to be exploited: $exploited)"
+          echo "unchecked=$unchecked" >> "$GITHUB_OUTPUT"
+          echo "Advisories without a final decision: $open (known to be exploited: $exploited). Components not checked: $unchecked"
         fi
         if [ "$code" = 3 ]; then
-          echo "::error::shipward scan: advisories match fail-on: $FAIL_ON (see the job summary; record decisions with shipward triage)"
+          echo "::error::shipward scan: the result matches fail-on: $FAIL_ON (see the job summary; record decisions with shipward triage)"
         fi
         exit "$code"
 

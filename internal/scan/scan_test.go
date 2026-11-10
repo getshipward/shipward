@@ -117,8 +117,8 @@ func TestRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rep.Checked != 3 || len(rep.NotChecked) != 1 || len(rep.Warnings) != 0 {
-		t.Errorf("checked %d, not checked %q, warnings %q", rep.Checked, rep.NotChecked, rep.Warnings)
+	if rep.Components != 5 || rep.Checked != 3 || len(rep.NotChecked) != 1 || len(rep.Warnings) != 0 {
+		t.Errorf("components %d, checked %d, not checked %q, warnings %q", rep.Components, rep.Checked, rep.NotChecked, rep.Warnings)
 	}
 	if len(rep.Findings) != 2 {
 		t.Fatalf("findings = %+v", rep.Findings)

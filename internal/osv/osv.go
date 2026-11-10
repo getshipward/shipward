@@ -231,6 +231,20 @@ var Ecosystems = map[string]string{
 	packageurl.TypeGem:      "RubyGems",
 }
 
+// EcosystemNames lists the ecosystems shipward matches, for people: the OSV name and, where it differs, the purl type.
+func EcosystemNames() []string {
+	var out []string
+	for typ, eco := range Ecosystems {
+		if strings.EqualFold(typ, eco) {
+			out = append(out, eco)
+		} else {
+			out = append(out, eco+" ("+typ+")")
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i]) < strings.ToLower(out[j]) })
+	return out
+}
+
 var pythonSeparators = regexp.MustCompile(`[-_.]+`)
 
 // FromPURL returns the OSV package and version for a purl, or ok=false for a purl type shipward does not match.

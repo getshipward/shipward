@@ -21,8 +21,8 @@
 </p>
 
 Shipward is a command-line tool and a GitHub Action for small software makers. It lists every component of your
-product, finds known vulnerabilities in them, and keeps your decisions about each one. Everything it makes stays in
-your repository.
+product, finds known vulnerabilities in its packages from eight ecosystems (npm, NuGet, Composer, Go, PyPI, Maven,
+Rust, RubyGems), and keeps your decisions about each one. Everything it makes stays in your repository.
 
 > [!NOTE]
 > Shipward is early: we use it for our own products, and commands and files can still change. It helps you prepare
@@ -35,7 +35,7 @@ your repository.
 | `shipward sbom` | A CycloneDX 1.6 SBOM from your lock files, plus the parts no package manager knows (a game engine, vendored code) | [SBOM](https://shipward.dev/docs/sbom/) |
 | `shipward check sbom` | The SBOM fields Germany's BSI TR-03183-2 asks for that your SBOM misses | [SBOM fields](https://shipward.dev/docs/sbom-fields/) |
 | `shipward licences` | Licences a person checked, kept in `licences.yaml` and written into the SBOM | [Licences](https://shipward.dev/docs/licences/) |
-| `shipward scan` | Known vulnerabilities, matched on your machine against a daily, signed snapshot of public advisories | [Vulnerability scan](https://shipward.dev/docs/scan/) |
+| `shipward scan` | Known vulnerabilities in npm, NuGet, Composer, Go, PyPI, Maven, Rust and RubyGems packages, matched on your machine against a daily, signed snapshot of public advisories; it counts the components it cannot check | [Vulnerability scan](https://shipward.dev/docs/scan/) |
 | `shipward triage` | Your decision on each advisory (VEX), in `vex.yaml`, exported as OpenVEX | [Decisions (VEX)](https://shipward.dev/docs/decisions/) |
 | `shipward init` | Drafts of your security policy, `security.txt`, user information, declaration of conformity and technical documentation | [CRA documents](https://shipward.dev/docs/documents/) |
 | `shipward advisory` | A draft advisory about a fixed vulnerability (CRA Annex I Part II(4)), in Markdown and CSAF 2.0 | [Advisories](https://shipward.dev/docs/advisories/) |
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/checkout@<commit>
       - uses: getshipward/shipward@<commit>   # pin a commit
         with:
-          fail-on: none                       # or open, exploited
+          fail-on: none                       # or open, exploited, unchecked
 ```
 
 To hear about a missed report deadline, run `shipward report --fail-on overdue` on a schedule, in a private repository
