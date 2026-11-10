@@ -153,7 +153,7 @@ manufacturer:
   name: Maker
   email: s@example.com
 security:
-  acknowledge_working_days: 3
+  acknowledge_working_days: 1
   assessment_days: 14
   disclosure_days: 60
 `)
@@ -161,7 +161,7 @@ security:
 		t.Fatal(err)
 	}
 	sec := read(t, cfg, "SECURITY.md")
-	for _, want := range []string{"within 3 working days.", "within 14 days whether", "or for 60 days, whichever"} {
+	for _, want := range []string{"within 1 working day.", "within 14 days whether", "or for 60 days, whichever"} {
 		if !strings.Contains(sec, want) {
 			t.Errorf("SECURITY.md lacks %q:\n%s", want, sec)
 		}

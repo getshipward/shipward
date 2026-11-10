@@ -15,14 +15,14 @@ maintain those components.
 
 ## What happens next
 
-- We confirm that we received your report within {{ with .Security.AcknowledgeWorkingDays }}{{ . }} working days{{ else }}TODO: a number of working days, for example 5 (`security.acknowledge_working_days` in shipward.yaml){{ end }}.
-- We tell you within {{ with .Security.AssessmentDays }}{{ . }} days{{ else }}TODO: a number of days, for example 30 (`security.assessment_days`){{ end }} whether we can reproduce it and what we plan
+- We confirm that we received your report within {{ with .Security.AcknowledgeWorkingDays }}{{ count . "working day" }}{{ else }}TODO: a number of working days, for example 5 (`security.acknowledge_working_days` in shipward.yaml){{ end }}.
+- We tell you within {{ with .Security.AssessmentDays }}{{ count . "day" }}{{ else }}TODO: a number of days, for example 30 (`security.assessment_days`){{ end }} whether we can reproduce it and what we plan
   to do.
 - We fix confirmed vulnerabilities without delay, and ship security updates free of charge, separately from new
   features where we can.
 - When the fix is out, we publish an advisory: what the vulnerability was, which versions it affects, its impact and
   severity, and what users should do. We name you if you want to be named.
-- We ask you to keep the vulnerability private until the fix is out, or for {{ with .Security.DisclosureDays }}{{ . }} days,{{ else }}TODO: a number of days, for example 90
+- We ask you to keep the vulnerability private until the fix is out, or for {{ with .Security.DisclosureDays }}{{ count . "day" }},{{ else }}TODO: a number of days, for example 90
   (`security.disclosure_days`),{{ end }} whichever comes first. If we need longer, we tell you why.
 
 We report actively exploited vulnerabilities and severe incidents to the authorities, as the EU Cyber Resilience Act
@@ -38,6 +38,7 @@ TODO: which versions get security updates. Either a table:
 |---|---|
 | TODO | TODO |
 
-or this sentence: "Security updates are for the latest version; please update to it." Use the sentence only if the
-users of every older version can get the latest version free of charge, and need no new hardware or software to use
-it (Article 13(10) of the EU Cyber Resilience Act). Remove the option you do not use.
+or this sentence: "Security updates are for the latest version; please update to it." Article 13(10) of the EU Cyber
+Resilience Act allows that for later, substantially modified versions of a software product, only if the users of the
+earlier versions can get the latest version free of charge and have no additional costs to adjust the hardware and
+software environment in which they use the product. Remove the option you do not use.

@@ -103,6 +103,13 @@ func Write(cfg *config.Config, only []string, force bool, now time.Time, tool st
 			return s + "."
 		},
 		"languages": languageNames,
+		// count writes a number with its noun: "1 working day", "5 working days".
+		"count": func(n int, noun string) string {
+			if n == 1 {
+				return fmt.Sprintf("1 %s", noun)
+			}
+			return fmt.Sprintf("%d %ss", n, noun)
+		},
 		// origin is scheme://host of a URL: security.txt lives at the root of the site, whatever path the website has.
 		"origin": func(s string) string {
 			u, err := url.Parse(s)
@@ -158,8 +165,8 @@ func Write(cfg *config.Config, only []string, force bool, now time.Time, tool st
 func Warnings(cfg *config.Config) []string {
 	var w []string
 	if cfg.Security.Contact == "" {
-		w = append(w, "no security contact: security.txt has a TODO in its Contact field, which RFC 9116 requires; "+
-			"set security.contact or manufacturer.email in shipward.yaml")
+		w = append(w, "no security contact is set (security.contact or manufacturer.email in shipward.yaml): a newly "+
+			"written security.txt has a TODO in its Contact field, which RFC 9116 requires")
 	}
 	return w
 }
