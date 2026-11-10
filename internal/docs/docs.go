@@ -45,7 +45,7 @@ type data struct {
 	Manufacturer config.Manufacturer
 	Security     config.Security
 	SupportUntil string // "December 2031"
-	Expires      string // security.txt: one year from today
+	Expires      string // security.txt: 11 months from today
 	SBOM, VEX    string // paths relative to the repository
 	Note         string
 }
@@ -64,9 +64,10 @@ func Write(cfg *config.Config, only []string, force bool, now time.Time, tool st
 		Product:      cfg.Product,
 		Manufacturer: cfg.Manufacturer,
 		Security:     cfg.Security,
-		Expires:      now.UTC().AddDate(1, 0, 0).Truncate(24 * time.Hour).Format(time.RFC3339),
-		SBOM:         filepath.ToSlash(cfg.SBOM.Output),
-		VEX:          filepath.ToSlash(cfg.VEX.Output),
+		// RFC 9116 asks for less than a year; 11 months leaves a month to renew it.
+		Expires: now.UTC().AddDate(0, 11, 0).Truncate(24 * time.Hour).Format(time.RFC3339),
+		SBOM:    filepath.ToSlash(cfg.SBOM.Output),
+		VEX:     filepath.ToSlash(cfg.VEX.Output),
 		Note: fmt.Sprintf("Draft written by %s on %s. It helps you prepare; it is not legal advice and does not show "+
 			"conformity. Fill in every TODO, check every sentence, then remove this note.", tool, now.Format(time.DateOnly)),
 	}
@@ -102,6 +103,13 @@ func Write(cfg *config.Config, only []string, force bool, now time.Time, tool st
 			return s + "."
 		},
 		"languages": languageNames,
+		// count writes a number with its noun: "1 working day", "5 working days".
+		"count": func(n int, noun string) string {
+			if n == 1 {
+				return fmt.Sprintf("1 %s", noun)
+			}
+			return fmt.Sprintf("%d %ss", n, noun)
+		},
 		// origin is scheme://host of a URL: security.txt lives at the root of the site, whatever path the website has.
 		"origin": func(s string) string {
 			u, err := url.Parse(s)
@@ -150,6 +158,17 @@ func Write(cfg *config.Config, only []string, force bool, now time.Time, tool st
 		results = append(results, Result{Path: path, Written: true, TODOs: todos(buf.String())})
 	}
 	return results, nil
+}
+
+// Warnings lists what in shipward.yaml makes a draft incomplete in a way that is easy to miss. shipward init prints
+// them.
+func Warnings(cfg *config.Config) []string {
+	var w []string
+	if cfg.Security.Contact == "" {
+		w = append(w, "no security contact is set (security.contact or manufacturer.email in shipward.yaml): a newly "+
+			"written security.txt has a TODO in its Contact field, which RFC 9116 requires")
+	}
+	return w
 }
 
 func countTODOs(path string) int {

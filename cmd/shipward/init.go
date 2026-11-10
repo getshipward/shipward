@@ -31,6 +31,9 @@ manufacturer:
 #   contact: mailto:security@example.com   # default: the manufacturer's email
 #   policy: https://example.com/security   # where SECURITY.md is published
 #   languages: [en]
+#   acknowledge_working_days: 5            # SECURITY.md: your response times (TODO until you set them)
+#   assessment_days: 30
+#   disclosure_days: 90
 `
 
 func runInit(args []string, stdout, stderr io.Writer) int {
@@ -84,6 +87,9 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "shipward init: %v\n", err)
 		return 1
+	}
+	for _, w := range docs.Warnings(cfg) {
+		fmt.Fprintf(stderr, "shipward init: warning: %s\n", w)
 	}
 	total := 0
 	for _, r := range results {

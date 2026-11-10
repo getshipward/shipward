@@ -72,6 +72,12 @@ type Security struct {
 	Policy string `yaml:"policy"`
 	// Languages for reports, e.g. [en, sl]. Default [en].
 	Languages []string `yaml:"languages"`
+	// The response times SECURITY.md promises: the working days to confirm a report, the days to say whether it is
+	// reproduced and what happens next, and the days a reporter is asked to keep it private. Leave them out and the
+	// draft marks them TODO, so that you choose them yourself.
+	AcknowledgeWorkingDays int `yaml:"acknowledge_working_days"`
+	AssessmentDays         int `yaml:"assessment_days"`
+	DisclosureDays         int `yaml:"disclosure_days"`
 }
 
 // Reports says where shipward report keeps its cases and whom they go to.
@@ -204,6 +210,15 @@ func (c *Config) validate() error {
 	}
 	if c.Security.Contact != "" && !strings.HasPrefix(c.Security.Contact, "mailto:") && !strings.HasPrefix(c.Security.Contact, "https://") {
 		errs = append(errs, fmt.Errorf("security.contact %q must start with mailto: or https://", c.Security.Contact))
+	}
+	for _, d := range []struct {
+		key string
+		n   int
+	}{{"acknowledge_working_days", c.Security.AcknowledgeWorkingDays}, {"assessment_days", c.Security.AssessmentDays},
+		{"disclosure_days", c.Security.DisclosureDays}} {
+		if d.n < 0 {
+			errs = append(errs, fmt.Errorf("security.%s is %d: give a positive number of days, or leave it out", d.key, d.n))
+		}
 	}
 	return errors.Join(errs...)
 }

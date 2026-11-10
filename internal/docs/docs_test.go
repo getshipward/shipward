@@ -59,7 +59,7 @@ security:
 	}
 
 	txt := read(t, cfg, "cra/security.txt")
-	for _, want := range []string{"Contact: mailto:sec@example.com", "Expires: 2027-11-06T00:00:00Z",
+	for _, want := range []string{"Contact: mailto:sec@example.com", "Expires: 2027-10-06T00:00:00Z",
 		"Preferred-Languages: en, sl", "Canonical: https://example.com/.well-known/security.txt"} {
 		if !strings.Contains(txt, want) {
 			t.Errorf("security.txt lacks %q:\n%s", want, txt)
@@ -70,6 +70,14 @@ security:
 		if !strings.Contains(sec, want) {
 			t.Errorf("SECURITY.md lacks %q", want)
 		}
+	}
+	for _, unwanted := range []string{"5 working days", "30 days", "90 days", "please update to it.\n"} {
+		if strings.Contains(sec, unwanted) {
+			t.Errorf("SECURITY.md promises %q, which the maker did not choose", unwanted)
+		}
+	}
+	if !strings.Contains(sec, "Article 13(10)") {
+		t.Error("SECURITY.md does not name the conditions for updating only the latest version")
 	}
 	if strings.Contains(sec, "s.p..") {
 		t.Error("double full stop")
@@ -116,6 +124,50 @@ func TestMissingValuesAreTODO(t *testing.T) {
 		if r.TODOs == 0 {
 			t.Errorf("%s: no TODOs counted", r.Path)
 		}
+	}
+}
+
+func TestSecurityTxtWithoutContact(t *testing.T) {
+	cfg := load(t, "product:\n  name: App\nmanufacturer:\n  name: Maker\n")
+	results, err := Write(cfg, []string{"security.txt"}, false, time.Date(2026, 3, 31, 9, 0, 0, 0, time.UTC), "shipward test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	txt := read(t, cfg, "cra/security.txt")
+	if strings.Contains(txt, "Contact: \n") || !strings.Contains(txt, "Contact: TODO") || results[0].TODOs != 1 {
+		t.Errorf("TODOs = %d, security.txt:\n%s", results[0].TODOs, txt)
+	}
+	// 31 March + 11 months is 3 March of the next year (Go normalises 31 February): still less than a year.
+	if !strings.Contains(txt, "Expires: 2027-03-03T00:00:00Z") {
+		t.Errorf("Expires:\n%s", txt)
+	}
+	if w := Warnings(cfg); len(w) != 1 || !strings.Contains(w[0], "RFC 9116") {
+		t.Errorf("Warnings = %q", w)
+	}
+}
+
+func TestSecurityResponseTimes(t *testing.T) {
+	cfg := load(t, `product:
+  name: App
+manufacturer:
+  name: Maker
+  email: s@example.com
+security:
+  acknowledge_working_days: 1
+  assessment_days: 14
+  disclosure_days: 60
+`)
+	if _, err := Write(cfg, []string{"security"}, false, time.Now(), "shipward test"); err != nil {
+		t.Fatal(err)
+	}
+	sec := read(t, cfg, "SECURITY.md")
+	for _, want := range []string{"within 1 working day.", "within 14 days whether", "or for 60 days, whichever"} {
+		if !strings.Contains(sec, want) {
+			t.Errorf("SECURITY.md lacks %q:\n%s", want, sec)
+		}
+	}
+	if w := Warnings(cfg); len(w) != 0 {
+		t.Errorf("Warnings = %q", w)
 	}
 }
 

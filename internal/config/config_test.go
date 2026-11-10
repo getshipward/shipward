@@ -69,3 +69,10 @@ func TestSecurityDefaultsAndChecks(t *testing.T) {
 		}
 	}
 }
+
+func TestSecurityResponseTimesMustBePositive(t *testing.T) {
+	_, err := Load(write(t, "product:\n  name: A\nmanufacturer:\n  name: M\nsecurity:\n  disclosure_days: -1\n"))
+	if err == nil || !strings.Contains(err.Error(), "security.disclosure_days") {
+		t.Errorf("error = %v", err)
+	}
+}
