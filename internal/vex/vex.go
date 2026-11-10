@@ -97,6 +97,9 @@ func (s Statement) Validate() error {
 	if s.Status != Fixed && (s.FixedIn != "" || s.Advisory != "") {
 		errs = append(errs, errors.New("fixed_in and advisory are only for fixed"))
 	}
+	if s.Advisory != "" && !strings.HasPrefix(s.Advisory, "https://") && !strings.HasPrefix(s.Advisory, "http://") {
+		errs = append(errs, fmt.Errorf("advisory %q is not a URL (https://...)", s.Advisory))
+	}
 	if _, err := time.Parse(time.DateOnly, s.Date); err != nil {
 		errs = append(errs, fmt.Errorf("date %q is not YYYY-MM-DD", s.Date))
 	}

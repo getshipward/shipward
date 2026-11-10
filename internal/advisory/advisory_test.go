@@ -25,7 +25,8 @@ func TestMarkdown(t *testing.T) {
 	for _, want := range []string{"# Security advisory: Login bypass", "CVE-2026-1234, GHSA-abcd-efgh-ijkl, CVE-2026-9999",
 		"| Affected versions | 1.3.0, 1.3.1 |", "| Fixed in | 1.4.0 |", "| Severity | high (`CVSS:3.1/", "empty token",
 		"Anyone can play", "Update Example Game to version 1.4.0 or later.", "- https://example.org/GHSA", "Questions: security@example.com.",
-		"Draft written by shipward test", "it is not legal advice", "keep it out of public repositories"} {
+		"Draft written by shipward test", "it is not legal advice", "keep it out of public repositories",
+		"security risks of publishing to\noutweigh the benefits"} {
 		if !strings.Contains(string(md), want) {
 			t.Errorf("markdown lacks %q:\n%s", want, md)
 		}
@@ -138,6 +139,18 @@ func TestCSAF(t *testing.T) {
 	if _, err := CSAF(Advisory{ID: "X-1", Product: "P", Tool: "t"}); err == nil ||
 		!strings.Contains(err.Error(), "--affected") || !strings.Contains(err.Error(), "--fixed-in") || !strings.Contains(err.Error(), "manufacturer.url") {
 		t.Errorf("incomplete CSAF: %v", err)
+	}
+}
+
+func TestCSAFDistinctVersions(t *testing.T) {
+	a := full()
+	a.Affected = []string{"1.3.0", "1.4.0"}
+	if _, err := CSAF(a); err == nil || !strings.Contains(err.Error(), "both affected and fixed") {
+		t.Errorf("fixed version also affected: %v", err)
+	}
+	a.Affected = []string{"1 0", "1-0"}
+	if _, err := CSAF(a); err == nil || !strings.Contains(err.Error(), "the same product") {
+		t.Errorf("colliding versions: %v", err)
 	}
 }
 

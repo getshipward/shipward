@@ -96,6 +96,22 @@ func CSAF(a Advisory) ([]byte, error) {
 	if a.Manufacturer == "" || a.Product == "" {
 		errs = append(errs, errors.New("CSAF needs manufacturer.name and product.name"))
 	}
+	// Each version is one product in the tree, so their IDs must differ ("1.0" and "1-0" would not).
+	seen := map[string]string{}
+	for _, v := range append(append([]string{}, a.Affected...), a.FixedIn) {
+		if v == "" {
+			continue
+		}
+		if prev, ok := seen[slug(v)]; ok {
+			if prev == v && v == a.FixedIn {
+				errs = append(errs, fmt.Errorf("version %s is both affected and fixed", v))
+			} else {
+				errs = append(errs, fmt.Errorf("versions %q and %q are the same product in CSAF; name each version once", prev, v))
+			}
+			continue
+		}
+		seen[slug(v)] = v
+	}
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}

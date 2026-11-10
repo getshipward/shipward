@@ -23,6 +23,7 @@ func TestValidate(t *testing.T) {
 		{Statement{ID: "GHSA-1", Component: "left-pad", Status: Fixed, Date: "2026-11-06"}, "not a purl"},
 		{Statement{ID: "GHSA-1", Component: "pkg:npm/a", Status: Fixed, Date: "6.11.2026"}, "YYYY-MM-DD"},
 		{Statement{ID: "GHSA-1", Component: "pkg:npm/a", Status: Affected, Action: "update", FixedIn: "1.2", Date: "2026-11-06"}, "only for fixed"},
+		{Statement{ID: "GHSA-1", Component: "pkg:npm/a", Status: Fixed, Advisory: "cra/advisories/GHSA-1.md", Date: "2026-11-06"}, "is not a URL"},
 	}
 	for _, b := range bad {
 		if err := b.s.Validate(); err == nil || !strings.Contains(err.Error(), b.want) {
