@@ -1,9 +1,10 @@
 <!-- {{ .Note }} -->
 # {{ if .IsIncident }}Incident{{ else }}Vulnerability{{ end }} notification: {{ .Case.Title }}
 
-**Due {{ when .Due.Notification }}** (72 hours after becoming aware; CRA Article {{ if .IsIncident }}14(4)(b){{ else }}14(2)(b){{ end }}).
+**Send it without undue delay, at the latest {{ when .Due.Notification }}** (72 hours after becoming aware; CRA Article {{ if .IsIncident }}14(4)(b){{ else }}14(2)(b){{ end }}).
 Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIRT coordinator" }}. Then run
-`shipward report done {{ .ID }} notification`.
+`shipward report done {{ .ID }} notification`. If the early warning already gave all of this, you need not send it
+again: run `shipward report done {{ .ID }} notification --skipped "already provided in the early warning"`.
 
 ## General information about the product
 

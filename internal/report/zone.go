@@ -77,6 +77,10 @@ func (c *Case) normalise() {
 		t := c.in(*c.FixAvailable)
 		c.FixAvailable = &t
 	}
+	if c.IntermediateDue != nil {
+		t := c.in(*c.IntermediateDue)
+		c.IntermediateDue = &t
+	}
 	for k, t := range c.Submitted {
 		c.Submitted[k] = c.in(t)
 	}

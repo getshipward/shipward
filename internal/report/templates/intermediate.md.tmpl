@@ -1,0 +1,18 @@
+<!-- {{ .Note }} -->
+# Intermediate report: {{ .Case.Title }}
+
+**Requested by the CSIRT, at the latest {{ when .Case.IntermediateDue }}** (CRA Article 14(6)).
+Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIRT coordinator" }}. Then run
+`shipward report done {{ .ID }} intermediate`.
+
+## Status updates
+
+TODO: what changed since the notification: what you learned, what you did, what is still open.
+
+## Measures taken
+
+{{ list .Case.MeasuresTaken "TODO: the corrective or mitigating measures you have taken." }}
+
+## Measures users can take
+
+{{ list .Case.UserMeasures "TODO: the corrective or mitigating measures users can take." }}

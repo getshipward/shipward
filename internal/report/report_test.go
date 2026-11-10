@@ -133,6 +133,105 @@ func TestZone(t *testing.T) {
 	}
 }
 
+func TestIntermediateSkippedAndNext(t *testing.T) {
+	aware := time.Date(2026, 11, 5, 15, 0, 0, 0, cet)
+	c := Case{Type: Incident, Title: "x", Aware: aware}
+	if _, ok := c.Deadline(Intermediate); ok {
+		t.Error("intermediate without a CSIRT request")
+	}
+	// The users' notice is not part of the report order: Next skips it, Closed needs it.
+	c.Submitted = map[string]time.Time{EarlyWarning: aware, Notification: aware.Add(time.Hour), Final: aware.Add(2 * time.Hour)}
+	if _, open := c.Next(); open || c.Closed() {
+		t.Errorf("all reports sent: next open %v, closed %v", open, c.Closed())
+	}
+	c.Submitted[Users] = aware
+	if !c.Closed() {
+		t.Error("not closed with every stage sent")
+	}
+
+	due := aware.Add(10 * 24 * time.Hour)
+	c = Case{Type: Incident, Title: "x", Aware: aware, IntermediateDue: &due,
+		Submitted: map[string]time.Time{EarlyWarning: aware, Notification: aware.Add(time.Hour)}}
+	if next, _ := c.Next(); next.Stage != Intermediate || !next.Due.Equal(due) {
+		t.Errorf("next = %+v, want the intermediate report", next)
+	}
+	if d, _ := c.Deadline(EarlyWarning); !d.UndueDelay {
+		t.Error("early warning lacks without undue delay")
+	}
+	if d, _ := c.Deadline(Final); d.UndueDelay {
+		t.Error("final report has without undue delay")
+	}
+
+	c.Skipped = map[string]string{Notification: "already provided in the early warning"}
+	if err := c.Validate(); err != nil {
+		t.Errorf("skipped notification: %v", err)
+	}
+	if d, _ := c.Deadline(Notification); d.Skipped == "" || d.Done.IsZero() {
+		t.Errorf("skipped notification = %+v", d)
+	}
+	err := Case{Type: Vulnerability, Title: "x", Aware: aware, Submitted: map[string]time.Time{EarlyWarning: aware, Intermediate: aware},
+		Skipped: map[string]string{EarlyWarning: "x", Final: " "}}.Validate()
+	for _, want := range []string{"early-warning cannot be skipped", "final needs a reason", "final is not in submitted", "no CSIRT request"} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("error %v lacks %q", err, want)
+		}
+	}
+}
+
+func TestIntermediateDraft(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &config.Config{Product: config.Product{Name: "Example Game"}, Manufacturer: config.Manufacturer{Name: "Maker"}}
+	aware := time.Date(2026, 11, 5, 15, 0, 0, 0, cet)
+	c := &Case{Type: Incident, Title: "Hit", Aware: aware}
+	written, err := WriteDrafts(dir, "id", c, cfg, false, cet, "shipward test")
+	if err != nil || len(written) != 4 {
+		t.Fatalf("drafts = %q, %v", written, err)
+	}
+	due := aware.AddDate(0, 0, 10)
+	c.IntermediateDue = &due
+	written, err = WriteDrafts(dir, "id", c, cfg, false, cet, "shipward test")
+	if err != nil || len(written) != 1 || filepath.Base(written[0]) != "intermediate.md" {
+		t.Fatalf("drafts after the request = %q, %v", written, err)
+	}
+	body, _ := os.ReadFile(written[0])
+	if !strings.Contains(string(body), "at the latest Sun 15 Nov 2026 15:00 CET") || !strings.Contains(string(body), "14(6)") {
+		t.Errorf("intermediate:\n%s", body)
+	}
+	users, _ := os.ReadFile(filepath.Join(dir, "users.md"))
+	for _, want := range []string{"in parallel with the reports", "not how the flaw works", "Annex I Part II(4)", "machine-readable"} {
+		if !strings.Contains(string(users), want) {
+			t.Errorf("users notice lacks %q:\n%s", want, users)
+		}
+	}
+	note, _ := os.ReadFile(filepath.Join(dir, "notification.md"))
+	if !strings.Contains(string(note), `--skipped "already provided in the early warning"`) {
+		t.Errorf("notification:\n%s", note)
+	}
+}
+
+func TestIgnoreCases(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "cra", "reports")
+	wrote, err := IgnoreCases(dir)
+	if err != nil || !wrote {
+		t.Fatalf("IgnoreCases = %v, %v", wrote, err)
+	}
+	body, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.HasSuffix(string(body), "\n*\n") {
+		t.Errorf(".gitignore:\n%s", body)
+	}
+	// A file the person changed (or deleted on purpose and wrote again) is kept.
+	os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("# keep\n"), 0o644)
+	if wrote, err := IgnoreCases(dir); err != nil || wrote {
+		t.Errorf("second IgnoreCases = %v, %v", wrote, err)
+	}
+	if got := withoutUser("https://user:ghp_secret@github.com/o/r.git"); got != "https://github.com/o/r.git" {
+		t.Errorf("withoutUser = %q", got)
+	}
+	if got := withoutUser("git@github.com:o/r.git"); got != "git@github.com:o/r.git" {
+		t.Errorf("withoutUser scp = %q", got)
+	}
+}
+
 func TestAddMonth(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
 		{"2026-01-29", "2026-02-28"},
@@ -255,7 +354,7 @@ func TestSaveLoadAndDrafts(t *testing.T) {
 		t.Fatalf("drafts = %q, %v", written, err)
 	}
 	early, _ := os.ReadFile(filepath.Join(dir, "early-warning.md"))
-	for _, want := range []string{"Due Fri 6 Nov 2026 15:00 CET", "to SI-CERT", "All EU Member States",
+	for _, want := range []string{"Send it without undue delay, at the latest Fri 6 Nov 2026 15:00 CET", "to SI-CERT", "All EU Member States",
 		"Suspected to be caused by unlawful or malicious acts | yes", "CRA Article 14(4)(a))"} {
 		if !strings.Contains(string(early), want) {
 			t.Errorf("early warning lacks %q:\n%s", want, early)
@@ -295,7 +394,7 @@ func TestVulnerabilityDrafts(t *testing.T) {
 		t.Errorf("vulnerability early warning:\n%s", early)
 	}
 	final, _ := os.ReadFile(filepath.Join(dir, "final.md"))
-	if !strings.Contains(string(final), "Due Sun 8 Nov 2026 15:00 CET") || !strings.Contains(string(final), "Note: the 14 days after the fix ended before you became aware: send the final report with the notification.") {
+	if !strings.Contains(string(final), "At the latest Sun 8 Nov 2026 15:00 CET") || !strings.Contains(string(final), "Note: the 14 days after the fix ended before you became aware: send the final report with the notification.") {
 		t.Errorf("final with an old fix:\n%s", final)
 	}
 }

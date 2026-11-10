@@ -1,16 +1,22 @@
 <!-- {{ .Note }} -->
 # Security notice: {{ .Case.Title }}
 
-Tell the users affected (and, where appropriate, all users) as soon as you can (CRA Article 14(8)). Publish it where
-your users will see it, for example on your website, in the product or by e-mail. Where it fits, also publish the
-decision in machine-readable form (`shipward triage set`, then `shipward triage export`). Then run
-`shipward report done {{ .ID }} users`.
+Tell the users affected, and where appropriate all users, about the {{ if .IsIncident }}incident{{ else }}vulnerability{{ end }} and what they can do
+(CRA Article 14(8)). This runs in parallel with the reports: do it as soon as you can, not after the final report.
+
+- Tell the affected users first, where they will see it: in the product, by e-mail.
+- Before a fix exists, say what users should do, not how the flaw works. Details can help attackers.
+- Publish the full details once the security update is out (Annex I Part II(4)).
+- Where appropriate, also give it in a structured, machine-readable form (Article 14(8)); for a flaw in a component,
+  for example a VEX decision (`shipward triage set`, then `shipward triage export`).
+
+Then run `shipward report done {{ .ID }} users`.
 
 ---
 
 {{ if .IsIncident }}{{ .Manufacturer.Name }} is dealing with a security incident that affects {{ .Product.Name }}{{ else }}Attackers are using a vulnerability in {{ .Product.Name }}{{ end }}{{ with .Case.Versions }} (versions {{ join . ", " }}){{ end }}.
 
-**What happened**: TODO: in plain words, what the problem is and what it can mean for users.
+**What happened**: TODO: in plain words, what the problem means for users. Before a fix exists, leave out how it works.
 
 **What we did**: {{ list .Case.MeasuresTaken "TODO" }}
 
