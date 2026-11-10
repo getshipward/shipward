@@ -456,6 +456,13 @@ func TestDraftsFollowTheForm(t *testing.T) {
 		t.Errorf("endOfSupport = %q, %q", endOfSupport("2025-06", aware), endOfSupport("2026-11", aware))
 	}
 	err := Case{Type: Incident, Title: "x", Aware: aware, ProductType: "important-1", ProductClass: "1", MitigationExpected: "soon"}.Validate()
+	if err := (Case{Type: Incident, Title: "x", Aware: aware, ProductType: "default", ProductClass: "class-ii"}).Validate(); err == nil ||
+		!strings.Contains(err.Error(), "only for product_type important") {
+		t.Errorf("class on a default product: %v", err)
+	}
+	if err := (Case{Type: Incident, Title: "x", Aware: aware, ProductType: "important", ProductClass: "class-ii"}).Validate(); err != nil {
+		t.Errorf("important class II: %v", err)
+	}
 	for _, want := range []string{`product_type "important-1"`, `product_class "1"`, `mitigation_expected "soon"`} {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("error %v lacks %q", err, want)

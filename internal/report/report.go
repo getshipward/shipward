@@ -128,7 +128,11 @@ func (c Case) Validate() error {
 		errs = append(errs, fmt.Errorf("product_type %q is not default, important or critical", c.ProductType))
 	}
 	switch c.ProductClass {
-	case "", "class-i", "class-ii":
+	case "":
+	case "class-i", "class-ii":
+		if c.ProductType != "important" {
+			errs = append(errs, errors.New("product_class is only for product_type important (Annex III)"))
+		}
 	default:
 		errs = append(errs, fmt.Errorf("product_class %q is not class-i or class-ii", c.ProductClass))
 	}
