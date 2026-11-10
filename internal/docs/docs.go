@@ -1,6 +1,6 @@
 // Package docs writes drafts of the documents the EU Cyber Resilience Act asks a manufacturer to have: the
 // coordinated vulnerability disclosure policy (SECURITY.md), security.txt, the information for users (Annex II), the
-// EU declaration of conformity (Annex V) and the technical documentation (Annex VII). It fills in what shipward.yaml knows
+// EU declaration of conformity (Annex V), the simplified one (Annex VI) and the technical documentation (Annex VII). It fills in what shipward.yaml knows
 // and marks the rest TODO. The drafts help a maker prepare; a person completes and checks them.
 package docs
 
@@ -36,6 +36,7 @@ var All = []Doc{
 	{Name: "security.txt", Template: "security.txt.tmpl", File: "security.txt"},
 	{Name: "user-information", Template: "user-information.md.tmpl", File: "user-information.md"},
 	{Name: "declaration", Template: "declaration-of-conformity.md.tmpl", File: "declaration-of-conformity.md"},
+	{Name: "simplified-declaration", Template: "simplified-declaration-of-conformity.md.tmpl", File: "simplified-declaration-of-conformity.md"},
 	{Name: "technical-documentation", Template: "technical-documentation.md.tmpl", File: "technical-documentation.md"},
 }
 

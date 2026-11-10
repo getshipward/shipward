@@ -1,4 +1,9 @@
-<!-- {{ .Note }} Sign it only when the technical documentation is complete and the conformity assessment is done. -->
+<!-- {{ .Note }}
+Sign it only when the technical documentation is complete and the conformity assessment is done. The structure follows Annex V of the EU Cyber Resilience Act. Point 3 says "manufacturer" where Annex V says
+"provider": Articles 13(12) and 28 make the manufacturer draw up the declaration and take responsibility for it.
+CE marking: for software, put the CE marking on this declaration or on the product's website (in a part of the site
+consumers reach easily and directly), and only once the conformity assessment has shown that the requirements are
+met, before the product is placed on the market (Articles 13(12), 30(1) and 30(3)). -->
 # EU declaration of conformity
 
 No. TODO: a number for this declaration
@@ -9,11 +14,13 @@ No. TODO: a number for this declaration
 4. **Object of the declaration**: {{ .Product.Name }}, version TODO. TODO: anything that allows tracing it, for
    example the build or the SBOM's serial number.
 5. The object of the declaration described above is in conformity with the relevant Union harmonisation legislation:
-   Regulation (EU) 2024/2847 (Cyber Resilience Act). TODO: other Union legislation that applies, if any.
+   Regulation (EU) 2024/2847 of the European Parliament and of the Council of 23 October 2024 (Cyber Resilience Act),
+   OJ L, 2024/2847, 20.11.2024. The fulfilment of the applicable essential cybersecurity requirements set out in
+   Annex I to that Regulation has been demonstrated. TODO: other Union legislation that applies, if any, with its
+   publication reference (Article 28(3)).
 6. **Harmonised standards, common specifications or certification**: TODO: the references, or "None" (then the
    technical documentation describes the solutions used).
-7. **Notified body**: None. Conformity assessment: internal control (module A, Annex VIII, part I), for a product not
-   listed in Annex III or IV. TODO: confirm that the product is not an important or critical product.
+7. {{ template "route" . }}
 8. **Additional information**: TODO, or remove.
 
 Signed for and on behalf of: {{ .Manufacturer.Name }}
@@ -21,3 +28,38 @@ Signed for and on behalf of: {{ .Manufacturer.Name }}
 (place and date of issue): TODO
 
 (name, function) (signature): TODO
+
+TODO: make this declaration available in the languages required by each Member State where the product is placed on
+the market or made available{{ with .Product.Markets }} ({{ join . ", " }}){{ end }} (Article 28(2)), then remove this line.
+{{- define "route" }}
+{{- if eq .Product.Class "default" -}}
+**Notified body**: None. Conformity assessment: internal control (module A, Annex VIII, Part I), for a product not
+   listed in Annex III or IV. If you chose another procedure of Article 32(1), write it here instead.
+{{- else if eq .Product.Class "important-1" -}}
+**Notified body**: TODO: the name and number of the notified body and the certificate it issued, or "None" for
+   internal control. Conformity assessment: TODO: an important product, class I (Annex III). Internal control
+   (module A, Annex VIII, Part I) is allowed only if you applied in full harmonised standards, common specifications
+   or a European cybersecurity certification scheme at assurance level at least "substantial" (name them in point 6).
+   Otherwise: EU-type examination (module B) followed by conformity to type (module C), or full quality assurance
+   (module H) (Article 32(2)). {{ template "foss" }}
+{{- else if eq .Product.Class "important-2" -}}
+**Notified body**: TODO: the name and number of the notified body and the certificate it issued. Conformity
+   assessment: TODO: an important product, class II (Annex III). One of: EU-type examination (module B) followed by
+   conformity to type (module C), full quality assurance (module H), or a European cybersecurity certification
+   scheme at assurance level at least "substantial" (Article 32(3)). Internal control is not allowed, even with
+   harmonised standards applied in full. {{ template "foss" }}
+{{- else if eq .Product.Class "critical" -}}
+**Notified body**: TODO: the name and number of the notified body and the certificate it issued. Conformity
+   assessment: TODO: a critical product (Annex IV). A European cybersecurity certification scheme where a delegated act
+   under Article 8(1) requires one; otherwise one of the procedures of Article 32(3) (Article 32(4)).
+{{- else -}}
+**Notified body**: TODO. Conformity assessment: TODO: the procedure performed, and, where a notified body took part,
+   its name and number and the certificate it issued. The procedure depends on the product's class: set
+   `product.class` in shipward.yaml (default, important-1, important-2 or critical; see the checklist in the
+   technical documentation) and write this draft again.
+{{- end }}
+{{- end }}
+{{- define "foss" }}Free and open-source software in Annex III may use internal control
+   (module A) instead, if its technical documentation is public when the product is placed on the market
+   (Article 32(5)).
+{{- end }}

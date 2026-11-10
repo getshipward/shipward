@@ -23,6 +23,8 @@ product:
   # purpose: who uses it, for what, and where
   # website: https://example.com
   # support_until: "2031-12"     # end of the support period (YYYY-MM)
+  # class: default               # default, important-1, important-2 or critical (CRA Annex III, IV)
+  # declaration_url: https://example.com/declaration   # where the EU declaration of conformity is published
   # licence: LicenseRef-example-proprietary
 manufacturer:
   name: %s
@@ -91,13 +93,16 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	for _, w := range docs.Warnings(cfg) {
 		fmt.Fprintf(stderr, "shipward init: warning: %s\n", w)
 	}
-	total := 0
+	total, width := 0, 36
+	for _, r := range results {
+		width = max(width, len(r.Path))
+	}
 	for _, r := range results {
 		state := "kept (exists; --force overwrites)"
 		if r.Written {
 			state = "wrote"
 		}
-		fmt.Fprintf(stdout, "%-36s %-36s %d TODO\n", r.Path, state, r.TODOs)
+		fmt.Fprintf(stdout, "%-*s %-36s %d TODO\n", width, r.Path, state, r.TODOs)
 		total += r.TODOs
 	}
 	fmt.Fprintf(stdout, "\n%d TODOs to fill in. These are drafts that follow the CRA's lists; they are not legal advice.\n", total)

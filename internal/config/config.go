@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,10 +51,25 @@ type Product struct {
 	// SupportUntil is the end of the support period, as YYYY-MM (CRA Art. 13(8): at least five years, unless the
 	// product is expected to be in use for less).
 	SupportUntil string `yaml:"support_until"`
+	// Class is the product's category under the CRA, which decides the conformity assessment procedure (Art. 32):
+	// default (not listed in Annex III or IV), important-1 or important-2 (Annex III, class I or II) or critical
+	// (Annex IV). Leave it out until you have checked; the declaration of conformity then marks point 7 TODO.
+	Class string `yaml:"class"`
+	// DeclarationURL is the exact internet address where the full EU declaration of conformity can be read (Annex II
+	// point 6, Annex VI).
+	DeclarationURL string `yaml:"declaration_url"`
 	// Markets are the Member States where the product is made available (ISO codes such as SI, DE), or "EU" for all
 	// of them. Reports name them (CRA Art. 14(2)(a), 14(4)(a)).
 	Markets []string `yaml:"markets"`
 }
+
+// The values of product.class.
+const (
+	ClassDefault    = "default"     // not listed in Annex III or IV
+	ClassImportant1 = "important-1" // Annex III, class I
+	ClassImportant2 = "important-2" // Annex III, class II
+	ClassCritical   = "critical"    // Annex IV
+)
 
 // Manufacturer is the supplier written into the SBOM metadata.
 type Manufacturer struct {
@@ -208,6 +224,15 @@ func (c *Config) validate() error {
 			errs = append(errs, fmt.Errorf("product.support_until %q is not YYYY-MM", c.Product.SupportUntil))
 		}
 	}
+	switch c.Product.Class {
+	case "", ClassDefault, ClassImportant1, ClassImportant2, ClassCritical:
+	default:
+		errs = append(errs, fmt.Errorf("product.class %q is not one of %s, %s, %s, %s", c.Product.Class,
+			ClassDefault, ClassImportant1, ClassImportant2, ClassCritical))
+	}
+	if u := c.Product.DeclarationURL; u != "" && !webURL(u) {
+		errs = append(errs, fmt.Errorf("product.declaration_url %q is not a full http:// or https:// address", u))
+	}
 	if c.Security.Contact != "" && !strings.HasPrefix(c.Security.Contact, "mailto:") && !strings.HasPrefix(c.Security.Contact, "https://") {
 		errs = append(errs, fmt.Errorf("security.contact %q must start with mailto: or https://", c.Security.Contact))
 	}
@@ -221,6 +246,13 @@ func (c *Config) validate() error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// webURL reports whether s is an absolute http or https URL with a host.
+func webURL(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Hostname() != "" && u.Opaque == "" &&
+		!strings.ContainsAny(s, " \t\n")
 }
 
 // Resolve turns a path from shipward.yaml into one relative to the working directory.
