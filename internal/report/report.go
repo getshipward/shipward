@@ -50,15 +50,34 @@ type Case struct {
 	// 72-hour clocks start here.
 	Aware time.Time `yaml:"aware"`
 
-	Advisories []string `yaml:"advisories,omitempty"` // GHSA, CVE, ... (vulnerability)
+	// Occurred is when the vulnerability was exploited or the incident happened, as far as known (ENISA's form, fields
+	// v26a and i38).
+	Occurred *time.Time `yaml:"occurred,omitempty"`
+	// Summary is a short overview: what happened, the product and version, the impact, the mitigation (form field 3).
+	Summary string `yaml:"summary,omitempty"`
+
+	Advisories []string `yaml:"advisories,omitempty"` // GHSA, CVE, EUVD, ... (vulnerability; CVE and EUVD IDs fill fields v19, v20)
 	Components []string `yaml:"components,omitempty"` // affected components, as purls
 	Versions   []string `yaml:"versions,omitempty"`   // affected product versions
 	// MemberStates where the product is made available, or ["EU"].
 	MemberStates []string `yaml:"member_states,omitempty"`
 	// Malicious says whether the incident is suspected to be caused by unlawful or malicious acts: yes, no, unknown.
 	Malicious string `yaml:"malicious,omitempty"`
-	// Sensitivity is how sensitive the manufacturer considers the information (for example TLP:AMBER).
+	// Sensitivity is how sensitive the manufacturer considers the information, and why (for example TLP:AMBER).
 	Sensitivity string `yaml:"sensitivity,omitempty"`
+	// ProductType is the product's CRA type: default, important or critical (Annexes III, IV; form field 8).
+	// ProductClass (class-i, class-ii) and ProductCategory (the Annex III or IV category) are for important and
+	// critical products (fields 9, 10).
+	ProductType     string `yaml:"product_type,omitempty"`
+	ProductClass    string `yaml:"product_class,omitempty"`
+	ProductCategory string `yaml:"product_category,omitempty"`
+	// MitigationExpected says whether a fix or other mitigation is expected shortly: yes or no (field 13).
+	MitigationExpected string `yaml:"mitigation_expected,omitempty"`
+	// AttackVector says how the flaw is exploited or how the incident reached the product (field 18).
+	AttackVector string `yaml:"attack_vector,omitempty"`
+	// Severity and Impact describe the vulnerability or the incident (fields v24, v25, i34, i35).
+	Severity string `yaml:"severity,omitempty"`
+	Impact   string `yaml:"impact,omitempty"`
 
 	MeasuresTaken []string `yaml:"measures_taken,omitempty"` // corrective or mitigating measures taken
 	UserMeasures  []string `yaml:"user_measures,omitempty"`  // measures users can take
@@ -81,6 +100,9 @@ type Case struct {
 const Header = `# A case to report under the EU Cyber Resilience Act, Article 14 (shipward report). It describes a vulnerability or an
 # incident that may not be fixed or public yet: keep it out of public repositories. Times are RFC 3339; a time without an
 # offset (2026-11-06 14:00) is in the case's zone (or this computer's, when zone is empty).
+# The drafts follow the fields of ENISA's form. Keys you can add here to fill them: summary, occurred, versions,
+# components, product_type, product_class, product_category, mitigation_expected, sensitivity, attack_vector,
+# severity, impact, measures_taken, user_measures.
 `
 
 // Validate checks a case.
@@ -99,6 +121,25 @@ func (c Case) Validate() error {
 		if _, err := time.LoadLocation(c.Zone); err != nil || c.Zone == "Local" {
 			errs = append(errs, fmt.Errorf("zone %q is not a time zone name (Europe/Ljubljana)", c.Zone))
 		}
+	}
+	switch c.ProductType {
+	case "", "default", "important", "critical":
+	default:
+		errs = append(errs, fmt.Errorf("product_type %q is not default, important or critical", c.ProductType))
+	}
+	switch c.ProductClass {
+	case "":
+	case "class-i", "class-ii":
+		if c.ProductType != "important" {
+			errs = append(errs, errors.New("product_class is only for product_type important (Annex III)"))
+		}
+	default:
+		errs = append(errs, fmt.Errorf("product_class %q is not class-i or class-ii", c.ProductClass))
+	}
+	switch c.MitigationExpected {
+	case "", "yes", "no":
+	default:
+		errs = append(errs, fmt.Errorf("mitigation_expected %q is not yes or no", c.MitigationExpected))
 	}
 	switch c.Malicious {
 	case "", "yes", "no", "unknown":
@@ -355,7 +396,7 @@ func localTimes(doc *yaml.Node, loc *time.Location) error {
 	for i := 0; i+1 < len(m); i += 2 {
 		key, val := m[i].Value, m[i+1]
 		switch key {
-		case "aware", "fix_available", "intermediate_due":
+		case "aware", "fix_available", "intermediate_due", "occurred":
 			if err := fix(key, val); err != nil {
 				return err
 			}

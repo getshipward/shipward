@@ -376,7 +376,8 @@ func TestSaveLoadAndDrafts(t *testing.T) {
 	}
 	early, _ := os.ReadFile(filepath.Join(dir, "early-warning.md"))
 	for _, want := range []string{"Send it without undue delay, at the latest Fri 6 Nov 2026 15:00 CET", "to SI-CERT", "All EU Member States",
-		"Suspected to be caused by unlawful or malicious acts | yes", "CRA Article 14(4)(a))"} {
+		"### i31. Suspected of unlawful or malicious acts (max. 255 characters)\n\nyes", "CRA Article 14(4)(a))",
+		"### i37. Became aware (UTC)\n\n2026-11-05 14:00 UTC (Thu 5 Nov 2026 15:00 CET)", "CRA SRP Glossary, version 1.6"} {
 		if !strings.Contains(string(early), want) {
 			t.Errorf("early warning lacks %q:\n%s", want, early)
 		}
@@ -389,8 +390,9 @@ func TestSaveLoadAndDrafts(t *testing.T) {
 		t.Errorf("incident final before the notification:\n%s", final)
 	}
 	note, _ := os.ReadFile(filepath.Join(dir, "notification.md"))
-	if !strings.Contains(string(note), "Initial assessment") || !strings.Contains(string(note), "- Took the server off line") ||
-		!strings.Contains(string(note), "Example Game: A board game. Manufacturer") || strings.Contains(string(note), "..") {
+	if !strings.Contains(string(note), "### i39. Initial assessment (required, max. 4000 characters)") ||
+		!strings.Contains(string(note), "- Took the server off line") || !strings.Contains(string(note), "The product: A board game.") ||
+		strings.Contains(string(note), "..") || strings.Contains(string(note), "v21.") || strings.Contains(string(note), "v28") {
 		t.Errorf("notification:\n%s", note)
 	}
 	if info, _ := os.Stat(filepath.Join(dir, "users.md")); info.Mode().Perm() != 0o600 {
@@ -398,6 +400,73 @@ func TestSaveLoadAndDrafts(t *testing.T) {
 	}
 	if again, _ := WriteDrafts(dir, id, got, cfg, false, cet, "shipward test"); len(again) != 0 {
 		t.Errorf("drafts overwritten without force: %q", again)
+	}
+}
+
+// TestDraftsFollowTheForm: the drafts carry ENISA's field numbers in order, the limits, the awareness time in UTC
+// and the new fields of report.yaml.
+func TestDraftsFollowTheForm(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &config.Config{Product: config.Product{Name: "Example Game", SupportUntil: "2031-12"}, Manufacturer: config.Manufacturer{Name: "Maker"}}
+	aware := time.Date(2026, 11, 5, 15, 0, 0, 0, cet)
+	occurred := aware.Add(-48 * time.Hour)
+	c := &Case{Type: Vulnerability, Title: strings.Repeat("x", 256), Aware: aware, Occurred: &occurred,
+		Summary: "An exploited flaw in the login.", Advisories: []string{"GHSA-aaaa", "CVE-2026-1234", "EUVD-2026-5"},
+		Versions: []string{"1.3.0", "1.3.1"}, ProductType: "default", MitigationExpected: "yes", AttackVector: "Network, no login.",
+		Severity: "High.", Impact: "Account takeover."}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteDrafts(dir, "id", c, cfg, false, cet, "shipward test"); err != nil {
+		t.Fatal(err)
+	}
+	read := func(name string) string {
+		b, _ := os.ReadFile(filepath.Join(dir, name))
+		return string(b)
+	}
+	inOrder := func(name, body string, parts ...string) {
+		at := 0
+		for _, p := range parts {
+			i := strings.Index(body[at:], p)
+			if i < 0 {
+				t.Errorf("%s lacks %q after position %d:\n%s", name, p, at, body)
+				return
+			}
+			at += i + len(p)
+		}
+	}
+	early := read("early-warning.md")
+	inOrder("early warning", early, "### 1. Notification type", "Actively exploited vulnerability", "### 2. Title (max. 255 characters)",
+		"**Too long for the form: 256 characters, the field takes 255.**", "### 3. Summary", "An exploited flaw in the login.",
+		"### 5. Member States", "### 6. Product name", "### 7. Product version", "1.3.0, 1.3.1",
+		"### v26. Became aware (UTC)", "2026-11-05 14:00 UTC", "**8. Product type**: default",
+		"**11. End of the support period reached**: No (support until the end of December 2031)",
+		"**13. Mitigating measure expected shortly**: yes", "**v19. CVE ID**: CVE-2026-1234", "**v20. EUVD ID**: EUVD-2026-5",
+		"**v26a. Occurred (UTC)**: 2026-11-03 14:00 UTC")
+	note := read("notification.md")
+	inOrder("notification", note, "Became aware: 2026-11-05 14:00 UTC", "### v21. General information (required", "Advisories: GHSA-aaaa",
+		"### 15. Sensitivity", "### 16.", "### 17.", "### 18. Attack vector", "Network, no login.", "### v24. Severity", "High.",
+		"### v25. Impact", "Account takeover.", "### v28-v30. Particularly exceptional circumstances")
+	final := read("final.md")
+	inOrder("final", final, "All are required here", "### 16.", "### 17.", "### v22.", "### v23.", "### v24.", "High.", "### v25.",
+		"Account takeover.", "### v27. Malicious actor (max. 100 characters")
+
+	if endOfSupport("2025-06", aware) != "Yes (support ended at the end of June 2025)" || endOfSupport("", aware) != "" ||
+		endOfSupport("2026-11", aware) != "No (support until the end of November 2026)" {
+		t.Errorf("endOfSupport = %q, %q", endOfSupport("2025-06", aware), endOfSupport("2026-11", aware))
+	}
+	err := Case{Type: Incident, Title: "x", Aware: aware, ProductType: "important-1", ProductClass: "1", MitigationExpected: "soon"}.Validate()
+	if err := (Case{Type: Incident, Title: "x", Aware: aware, ProductType: "default", ProductClass: "class-ii"}).Validate(); err == nil ||
+		!strings.Contains(err.Error(), "only for product_type important") {
+		t.Errorf("class on a default product: %v", err)
+	}
+	if err := (Case{Type: Incident, Title: "x", Aware: aware, ProductType: "important", ProductClass: "class-ii"}).Validate(); err != nil {
+		t.Errorf("important class II: %v", err)
+	}
+	for _, want := range []string{`product_type "important-1"`, `product_class "1"`, `mitigation_expected "soon"`} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("error %v lacks %q", err, want)
+		}
 	}
 }
 

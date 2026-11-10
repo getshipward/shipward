@@ -6,17 +6,73 @@
 Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIRT coordinator (`reports.csirt` in shipward.yaml)" }}. Then run
 `shipward report done {{ .ID }} early-warning`.
 
-| Field | Value |
-|---|---|
-| Kind | {{ if .IsIncident }}Severe incident having an impact on the security of the product{{ else }}Actively exploited vulnerability in the product{{ end }} |
-| Product | {{ .Product.Name }}{{ with .Case.Versions }}, versions {{ join . ", " }}{{ end }} |
-| Manufacturer | {{ .Manufacturer.Name }} |
-| Became aware | {{ when .Case.Aware }} |
-| Member States where the product is made available | {{ if .Case.MemberStates }}{{ states .Case.MemberStates }}{{ else }}TODO (`product.markets` in shipward.yaml){{ end }} |
+Send it even if you know little yet: the notification follows within 72 hours. The fields follow {{ .Glossary }},
+in its order, with its limits. Check them against the form: it can change.
+
+## Required
+
+### 1. Notification type
+
+{{ if .IsIncident }}Severe incident{{ else }}Actively exploited vulnerability{{ end }}
+
+### 2. Title (max. 255 characters)
+
+{{ field .Case.Title 255 "TODO" }}
+
+### 3. Summary (max. 4000 characters)
+
+{{ field .Case.Summary 4000 "TODO: what happened, the product and version, the known impact, and the mitigation so far (`summary` in report.yaml)." }}
+
+### 4. Manufacturer name
+
+Filled in by the platform from your registration. Check that it says {{ .Manufacturer.Name }}.
+
+### 5. Member States where the product is available
+
+{{ if .Case.MemberStates }}{{ states .Case.MemberStates }}{{ else }}TODO (`product.markets` in shipward.yaml){{ end }}. The platform adds your CSIRT's Member State.
+
+### 6. Product name (max. 255 characters)
+
+{{ field .Product.Name 255 "TODO" }}
+
+### 7. Product version (max. 255 characters)
+
+{{ field (join .Case.Versions ", ") 255 "TODO: every affected version, or a range (`versions` in report.yaml)." }}
 {{- if .IsIncident }}
-| Suspected to be caused by unlawful or malicious acts | {{ or .Case.Malicious "TODO: yes, no or unknown" }} |
+
+### i31. Suspected of unlawful or malicious acts (max. 255 characters)
+
+{{ field .Case.Malicious 255 "TODO: yes, no or unknown (`malicious`)" }}
+
+### i37. Became aware (UTC)
+
+{{ utc .Case.Aware }} ({{ when .Case.Aware }})
 {{- else }}
-| Advisories | {{ if .Case.Advisories }}{{ join .Case.Advisories ", " }}{{ else }}TODO, if known{{ end }} |
+
+### v26. Became aware (UTC)
+
+{{ utc .Case.Aware }} ({{ when .Case.Aware }})
 {{- end }}
 
-An early warning needs no more than this. Send it even if you know little yet: the notification follows within 72 hours.
+## Optional now
+
+Fill in what you know; leave the rest for the notification.
+
+- **8. Product type**: {{ or .Case.ProductType "TODO: default, important or critical (Annexes III, IV; `product_type`)" }}
+{{- with .Case.ProductClass }}
+- **9. Product class**: {{ . }}
+{{- end }}
+{{- with .Case.ProductCategory }}
+- **10. Product category**: {{ . }}
+{{- end }}
+- **11. End of the support period reached**: {{ or .EndOfSupport "TODO: yes or no (`product.support_until` in shipward.yaml)" }}
+- **12. Component name** (max. 255 characters): {{ field (join .Case.Components ", ") 255 "none known" }}
+- **13. Mitigating measure expected shortly**: {{ or .Case.MitigationExpected "TODO: yes or no (`mitigation_expected`)" }}
+- **15. Sensitivity** (max. 255 characters): {{ field .Case.Sensitivity 255 "TODO: what needs restricted handling, and why (`sensitivity`)" }}
+{{- if not .IsIncident }}
+- **v19. CVE ID**: {{ if .CVE }}{{ join .CVE ", " }}{{ else }}none known{{ end }}
+- **v20. EUVD ID**: {{ if .EUVD }}{{ join .EUVD ", " }}{{ else }}none known{{ end }}
+{{- end }}
+{{- with .Case.Occurred }}
+- **{{ if $.IsIncident }}i38{{ else }}v26a{{ end }}. Occurred (UTC)**: {{ utc . }}
+{{- end }}

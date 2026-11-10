@@ -10,6 +10,7 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"unicode/utf8"
 
 	"github.com/getshipward/shipward/internal/config"
 )
@@ -41,6 +42,27 @@ type draftData struct {
 	FinalLatest  bool   // Due.Final is the latest possible time (incident, notification not recorded)
 	FinalHint    string // an extra line about the final report's deadline, or empty
 	Note         string
+	// For ENISA's form: the CVE and EUVD IDs among the advisories, and whether the support period had ended when the
+	// manufacturer became aware.
+	CVE, EUVD    []string
+	EndOfSupport string
+	Glossary     string
+}
+
+// Glossary names the version of ENISA's field list the drafts follow.
+const Glossary = "ENISA's CRA SRP Glossary, version 1.6 (21 October 2026)"
+
+// endOfSupport answers field 11 from product.support_until (YYYY-MM): has the support period ended at aware?
+func endOfSupport(until string, aware time.Time) string {
+	t, err := time.Parse("2006-01", until)
+	if err != nil {
+		return ""
+	}
+	end := t.AddDate(0, 1, 0) // the period runs to the end of that month
+	if aware.Before(end) {
+		return "No (support until the end of " + t.Format("January 2006") + ")"
+	}
+	return "Yes (support ended at the end of " + t.Format("January 2006") + ")"
 }
 
 // WriteDrafts writes the drafts of a case. Existing drafts are kept unless force is set (report.yaml holds the facts;
@@ -53,6 +75,16 @@ func WriteDrafts(dir, id string, c *Case, cfg *config.Config, force bool, loc *t
 	if d.Contact == "" {
 		d.Contact = "TODO: a contact"
 	}
+	for _, a := range c.Advisories {
+		switch {
+		case strings.HasPrefix(a, "CVE-"):
+			d.CVE = append(d.CVE, a)
+		case strings.HasPrefix(a, "EUVD-"):
+			d.EUVD = append(d.EUVD, a)
+		}
+	}
+	d.EndOfSupport = endOfSupport(cfg.Product.SupportUntil, c.Aware)
+	d.Glossary = Glossary
 	for _, dl := range c.Deadlines() {
 		switch dl.Stage {
 		case EarlyWarning:
@@ -91,6 +123,28 @@ func WriteDrafts(dir, id string, c *Case, cfg *config.Config, force bool, loc *t
 			}
 			return fmt.Sprint(t)
 		},
+		// utc writes a time as ENISA's form asks for it, e.g. "2026-11-06 13:00 UTC".
+		"utc": func(t time.Time) string { return t.UTC().Format("2006-01-02 15:04") + " UTC" },
+		// field writes a value for one of the form's fields, or the fallback when it is empty, and says when the
+		// value is longer than the form takes.
+		"field": func(value string, max int, fallback string) string {
+			if strings.TrimSpace(value) == "" {
+				return fallback
+			}
+			if n := utf8.RuneCountInString(value); max > 0 && n > max {
+				return fmt.Sprintf("%s\n\n**Too long for the form: %d characters, the field takes %d.**", value, n, max)
+			}
+			return value
+		},
+		// items writes a bullet list, or "" when there are none.
+		"items": func(items []string) string {
+			if len(items) == 0 {
+				return ""
+			}
+			return "- " + strings.Join(items, "\n- ")
+		},
+		// lines joins items with "; " for a one-line field.
+		"lines": func(items []string) string { return strings.Join(items, "; ") },
 		// list writes items as a bullet list, or the fallback text when there are none.
 		"list": func(items []string, fallback string) string {
 			if len(items) == 0 {
