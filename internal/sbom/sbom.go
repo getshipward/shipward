@@ -49,6 +49,9 @@ type Supplier struct {
 
 // Generate scans Options.Path and returns the SBOM.
 func Generate(ctx context.Context, o Options) (*cyclonedx.BOM, error) {
+	if o.ProductLicence != "" && !ValidLicence(o.ProductLicence) {
+		return nil, fmt.Errorf("product.licence %q is not an SPDX licence expression: use an SPDX ID (MIT), an expression (MIT OR Apache-2.0) or LicenseRef-<you>-proprietary", o.ProductLicence)
+	}
 	srcCfg := syft.DefaultGetSourceConfig().
 		WithSources("dir").
 		WithExcludeConfig(source.ExcludeConfig{Paths: o.Exclude})
