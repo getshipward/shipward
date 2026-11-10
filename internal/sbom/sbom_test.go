@@ -43,6 +43,11 @@ func TestGenerate(t *testing.T) {
 		"go.mod":                   "module example.com/app\n\ngo 1.26\n\nrequire golang.org/x/text v0.20.0\n",
 		"go.sum":                   "golang.org/x/text v0.20.0 h1:gK/Kv2otX8gz+wn7Rmb3vT96ZwuoxnQlY+HlJVj7Qug=\ngolang.org/x/text v0.20.0/go.mod h1:D4IsuqiFMhST5bX19pQ9ikHC2GsaKyk/oF+pn3ducp4=\n",
 		".github/workflows/ci.yml": "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n",
+		// An npm lock file with one dependency and one development dependency, which must stay out.
+		"web/package-lock.json": `{"name":"web","lockfileVersion":3,"packages":{
+			"":{"name":"web","dependencies":{"left-pad":"1.3.0"},"devDependencies":{"test-only":"1.0.0"}},
+			"node_modules/left-pad":{"version":"1.3.0"},
+			"node_modules/test-only":{"version":"1.0.0","dev":true}}}`,
 	}
 	for name, content := range files {
 		p := filepath.Join(dir, name)
@@ -77,6 +82,9 @@ func TestGenerate(t *testing.T) {
 	var doc struct {
 		SpecVersion string `json:"specVersion"`
 		Metadata    struct {
+			Lifecycles []struct {
+				Phase string `json:"phase"`
+			} `json:"lifecycles"`
 			Component struct {
 				BOMRef   string `json:"bom-ref"`
 				Name     string `json:"name"`
@@ -108,9 +116,17 @@ func TestGenerate(t *testing.T) {
 		t.Errorf("metadata.component = %+v", m)
 	}
 
-	var sawText, sawGodot bool
+	if l := doc.Metadata.Lifecycles; len(l) != 1 || l[0].Phase != "pre-build" {
+		t.Errorf("lifecycles = %+v; want one, pre-build (a source SBOM)", l)
+	}
+
+	var sawText, sawGodot, sawLeftPad bool
 	for _, c := range doc.Components {
 		switch {
+		case c.Name == "left-pad":
+			sawLeftPad = true
+		case c.Name == "test-only":
+			t.Error("npm development dependency is in the SBOM")
 		case c.Name == "golang.org/x/text" && c.Version == "v0.20.0":
 			sawText = true
 		case c.Name == "godot" && c.PURL == "pkg:github/godotengine/godot@4.7.2-stable":
@@ -119,8 +135,8 @@ func TestGenerate(t *testing.T) {
 			t.Errorf("workflow action %s is in the SBOM", c.PURL)
 		}
 	}
-	if !sawText || !sawGodot {
-		t.Errorf("components: x/text %v, godot %v; want both", sawText, sawGodot)
+	if !sawText || !sawGodot || !sawLeftPad {
+		t.Errorf("components: x/text %v, godot %v, left-pad %v; want all", sawText, sawGodot, sawLeftPad)
 	}
 
 	var linked bool

@@ -97,6 +97,17 @@ func runSBOM(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintf(stdout, "wrote %s (%d components, %d from %s)\n", target, sbom.Count(bom), len(extra), cfg.SBOM.Extra)
+	drafts := 0
+	for _, e := range licences {
+		if !e.IsConfirmed() {
+			drafts++
+		}
+	}
+	if drafts > 0 {
+		fmt.Fprintf(stdout, "%d draft(s) in %s are not used until a person checks them (confirmed: false; shipward licences lists them).\n",
+			drafts, cfg.SBOM.Licences)
+	}
+	fmt.Fprintln(stdout, "This is a source SBOM (CycloneDX lifecycle pre-build): it lists what the lock files name, not what the build put into the delivered file.")
 	return 0
 }
 
