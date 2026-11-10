@@ -14,31 +14,50 @@ Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIR
 `shipward report done {{ .ID }} final`. If the earlier reports already gave all of this, run
 `shipward report done {{ .ID }} final --skipped "already provided"` instead.
 
-{{ if .IsIncident -}}
-## Detailed description
+The fields follow {{ .Glossary }}, in its order, with its limits. All are required here. Check them against the
+form: it can change.
 
-TODO: a detailed description of the incident, including its severity and impact.
+### 16. Corrective or mitigating measures taken (max. 2000 characters)
 
-## Threat or root cause
+{{ field (items .Case.MeasuresTaken) 2000 "TODO: what you did to correct the issue or reduce the risk (`measures_taken`)." }}
 
-TODO: the type of threat or the root cause that likely triggered the incident.
+### 17. Measures users can take (max. 4000 characters)
 
-## Mitigation measures
+{{ field (items .Case.UserMeasures) 4000 "TODO: steps users can apply: the fix first, then workarounds (`user_measures`)." }}
+{{ if .IsIncident }}
+### i33. Applied and ongoing mitigation measures (max. 4000 characters)
 
-{{ list .Case.MeasuresTaken "TODO: the mitigation measures applied and still ongoing." }}
-{{- else -}}
-## The vulnerability
+{{ field (items .Case.MeasuresTaken) 4000 "TODO: the mitigation measures applied and still ongoing." }}
 
-{{ with .Case.Advisories }}Advisories: {{ join . ", " }}.{{ end }}
-TODO: a description of the vulnerability, including its severity and impact.
+### i34. Severity of the incident (max. 4000 characters)
 
-## Who exploited it
+{{ field .Case.Severity 4000 "TODO: a detailed description of the severity: events, affected products and functions, scope, evidence, recovery (`severity`)." }}
 
-TODO: where available, information about any malicious actor that has exploited or is exploiting the vulnerability,
-or "No information available".
+### i35. Impact of the incident (max. 4000 characters)
 
-## The fix
+{{ field .Case.Impact 4000 "TODO: the impact on the product, data, functions, users or connected systems (`impact`)." }}
 
-{{ with .Case.FixAvailable }}Available since {{ when . }}.{{ end }}
-{{ list .Case.MeasuresTaken "TODO: details of the security update or other corrective measures made available." }}
+### i36. Type of threat or root cause (max. 255 characters)
+
+TODO: the most likely threat type or root cause, with the evidence in short.
+{{- else }}
+### v22. When the corrective or mitigating measure was available (UTC)
+
+{{ with .Case.FixAvailable }}{{ utc . }}{{ else }}TODO (`shipward report fixed {{ $.ID }}`){{ end }}
+
+### v23. Details of the security update or corrective measure (max. 2000 characters)
+
+TODO: the security update or other corrective measures made available, for example "version X, released ...".
+
+### v24. Severity of the vulnerability (max. 4000 characters)
+
+{{ field .Case.Severity 4000 "TODO: the full description of the vulnerability with its severity rating and why (`severity`)." }}{{ with .Case.Advisories }} Advisories: {{ join . ", " }}.{{ end }}
+
+### v25. Impact of the vulnerability (max. 4000 characters)
+
+{{ field .Case.Impact 4000 "TODO: the potential or actual impact: affected systems, components, data, users or services (`impact`)." }}
+
+### v27. Malicious actor (max. 100 characters; required if you know something)
+
+TODO: what you know about who exploited it, or "Unknown".
 {{- end }}

@@ -7,35 +7,67 @@ Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIR
 again: run `shipward report done {{ .ID }} notification --skipped "already provided in the early warning"`.
 {{- if .IsIncident }} The final report is then due one month after the early warning.{{ end }}
 
-## General information about the product
+The fields follow {{ .Glossary }}, in its order, with its limits. Check them against the form: it can change.
+Became aware: {{ utc .Case.Aware }}.
+{{ if .IsIncident }}
+### i31. Suspected of unlawful or malicious acts (copied from the early warning; update it if needed)
 
-{{ .Product.Name }}{{ with .Product.Description }}: {{ sentence . }}{{ else }}.{{ end }} Manufacturer: {{ sentence .Manufacturer.Name }}
-{{ with .Case.Versions }}Affected versions: {{ join . ", " }}.{{ else }}TODO: affected versions.{{ end }}
-{{ with .Case.Components }}Affected components: {{ join . ", " }}.{{ end }}
+{{ field .Case.Malicious 255 "TODO: yes, no or unknown" }}
 
-{{ if .IsIncident -}}
-## Nature of the incident
+### i32. Nature of the incident (required, max. 4000 characters)
 
-TODO: what happened, as far as you know.
+TODO: what happened, the affected product functions or security properties, and the known scope. Confirmed facts.
+{{ with .Product.Description }}The product: {{ sentence . }}{{ end }}
 
-## Initial assessment
+### i39. Initial assessment (required, max. 4000 characters)
 
-TODO: your first assessment of the incident: what is affected, how badly, and since when.
-{{- else -}}
-## Nature of the exploit and the vulnerability
+TODO: your first assessment: severity, scope, affected security properties, products or users, likely impact. Keep
+what is confirmed apart from what is still under investigation.
+{{ else }}
+### v21. General information (required, max. 4000 characters)
 
-{{ with .Case.Advisories }}Advisories: {{ join . ", " }}.{{ end }}
-TODO: the general nature of the vulnerability and of the exploit seen.
+TODO: the general nature of the vulnerability and of the exploit seen: the affected function, the access needed, how
+it is exploited.{{ with .Case.Advisories }} Advisories: {{ join . ", " }}.{{ end }}{{ with .Case.Components }} Affected components: {{ join . ", " }}.{{ end }}
+{{ end }}
+## Optional
+
+### 15. Sensitivity (max. 255 characters)
+
+{{ field .Case.Sensitivity 255 "TODO: what needs restricted handling and why (for example TLP:AMBER; `sensitivity`), or leave empty." }}
+
+### 16. Corrective or mitigating measures taken (max. 2000 characters)
+
+{{ field (items .Case.MeasuresTaken) 2000 "TODO: what you did to correct the issue or reduce the risk (`measures_taken`)." }}
+
+### 17. Measures users can take (max. 4000 characters)
+
+{{ field (items .Case.UserMeasures) 4000 "TODO: steps users can apply: the fix first, then workarounds (`user_measures`)." }}
+
+### 18. Attack vector (max. 255 characters)
+
+{{ field .Case.AttackVector 255 "TODO: how it is exploited or how it reached the product: interface, access path, user interaction (`attack_vector`)." }}
+{{- if .IsIncident }}
+
+### i34. Severity (max. 4000 characters)
+
+{{ field .Case.Severity 4000 "TODO (`severity`), or leave for the final report." }}
+
+### i35. Impact (max. 4000 characters)
+
+{{ field .Case.Impact 4000 "TODO (`impact`), or leave for the final report." }}
+{{- else }}
+
+### v24. Severity (max. 4000 characters)
+
+{{ field .Case.Severity 4000 "TODO (`severity`), or leave for the final report." }}
+
+### v25. Impact (max. 4000 characters)
+
+{{ field .Case.Impact 4000 "TODO (`impact`), or leave for the final report." }}
+
+### v28-v30. Particularly exceptional circumstances (Article 16(2))
+
+Only when one applies: the vulnerability is exploited only in your CSIRT's Member State; further dissemination would
+harm that Member State's essential security interests; or it poses an imminent high risk. Then select it, give the
+facts (max. 800 characters), and the CSIRT decides on delaying dissemination. Otherwise leave it.
 {{- end }}
-
-## Measures taken
-
-{{ list .Case.MeasuresTaken "TODO: the corrective or mitigating measures you have taken." }}
-
-## Measures users can take
-
-{{ list .Case.UserMeasures "TODO: the corrective or mitigating measures users can take." }}
-
-## Sensitivity
-
-{{ or .Case.Sensitivity "TODO: how sensitive you consider this information (for example TLP:AMBER), or remove." }}

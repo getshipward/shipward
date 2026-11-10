@@ -77,6 +77,10 @@ func (c *Case) normalise() {
 		t := c.in(*c.FixAvailable)
 		c.FixAvailable = &t
 	}
+	if c.Occurred != nil {
+		t := c.in(*c.Occurred)
+		c.Occurred = &t
+	}
 	if c.IntermediateDue != nil {
 		t := c.in(*c.IntermediateDue)
 		c.IntermediateDue = &t
