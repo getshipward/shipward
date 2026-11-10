@@ -79,6 +79,8 @@ func readBOM(path string) (*cyclonedx.BOM, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Some editors and Windows PowerShell 5 start a UTF-8 file with a byte order mark; JSON decoders refuse it.
+	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 	if err := sniffBOM(data); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
@@ -89,10 +91,11 @@ func readBOM(path string) (*cyclonedx.BOM, error) {
 	return &bom, nil
 }
 
-// sniffBOM says what a file is when it is not CycloneDX JSON: shipward reads only that format.
+// sniffBOM says what a file is when it is not CycloneDX JSON: shipward reads only that format. readBOM has removed a
+// UTF-8 byte order mark already.
 func sniffBOM(data []byte) error {
 	const want = "shipward reads CycloneDX JSON (shipward sbom writes it)"
-	trimmed := bytes.TrimSpace(bytes.TrimPrefix(data, []byte("\xef\xbb\xbf")))
+	trimmed := bytes.TrimSpace(data)
 	switch {
 	case len(trimmed) == 0:
 		return errors.New("the file is empty; " + want)

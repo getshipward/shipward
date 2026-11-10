@@ -40,14 +40,18 @@ func LoadLicences(path string) ([]LicenceConfirmation, error) {
 	}
 	var errs []error
 	for i, e := range entries {
-		switch {
-		case e.Component == "":
+		// Every problem of an entry at once, so one run shows them all.
+		if e.Component == "" {
 			errs = append(errs, fmt.Errorf("%s: entry %d: component is required", path, i))
+			continue
+		}
+		switch {
 		case e.Concluded == "":
 			errs = append(errs, fmt.Errorf("%s: %s: concluded is required", path, e.Component))
 		case !ValidLicence(e.Concluded):
 			errs = append(errs, fmt.Errorf("%s: %s: concluded %q is not an SPDX licence expression (an SPDX ID such as MIT, an expression such as \"MIT OR Apache-2.0\", or LicenseRef-...)", path, e.Component, e.Concluded))
-		case !hasVersion(e.Component) && e.Declared == "":
+		}
+		if !hasVersion(e.Component) && e.Declared == "" {
 			errs = append(errs, fmt.Errorf("%s: %s: an entry for every version needs the declared licence it was checked against", path, e.Component))
 		}
 	}

@@ -16,13 +16,16 @@ func TestLoadLicences(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "licences.yaml")
 	data := "- component: pkg:npm/a@1.0.0\n- component: pkg:npm/b\n  concluded: MIT\n- concluded: MIT\n" +
-		"- component: pkg:npm/c@1.0.0\n  concluded: All rights reserved\n- component: pkg:npm/d@1.0.0\n  concluded: LicenseRef-x-own OR MIT\n"
+		"- component: pkg:npm/c@1.0.0\n  concluded: All rights reserved\n- component: pkg:npm/d@1.0.0\n  concluded: LicenseRef-x-own OR MIT\n" +
+		"- component: pkg:npm/e\n  concluded: Proprietary\n"
 	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := LoadLicences(path)
 	for _, want := range []string{"pkg:npm/a@1.0.0: concluded is required", "pkg:npm/b: an entry for every version needs the declared licence",
-		"entry 2: component is required", `pkg:npm/c@1.0.0: concluded "All rights reserved" is not an SPDX licence expression`} {
+		"entry 2: component is required", `pkg:npm/c@1.0.0: concluded "All rights reserved" is not an SPDX licence expression`,
+		// Both problems of one entry in one run.
+		`pkg:npm/e: concluded "Proprietary" is not an SPDX licence expression`, "pkg:npm/e: an entry for every version needs the declared licence"} {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("error %v does not contain %q", err, want)
 		}

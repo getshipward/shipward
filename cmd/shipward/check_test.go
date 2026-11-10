@@ -18,10 +18,18 @@ func TestReadBOMNamesOtherFormats(t *testing.T) {
 		`{"name":"x"}`:                          `no "bomFormat": "CycloneDX"`,
 		`{"bomFormat":"CycloneDX",`:             "not valid JSON",
 		`{"bomFormat":"CycloneDX","specVersion":"1.6"}`: "",
+		// A UTF-8 byte order mark (Windows PowerShell 5, some editors) is fine.
+		"\xef\xbb\xbf" + `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"a"}]}`: "",
+		"\xef\xbb\xbf" + `{"spdxVersion":"SPDX-2.3"}`:                                                                 "an SPDX SBOM (SPDX-2.3)",
 	} {
 		p := filepath.Join(dir, "sbom.json")
-		os.WriteFile(p, []byte(content), 0o644)
-		_, err := readBOM(p)
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		bom, err := readBOM(p)
+		if want == "" && err == nil && strings.Contains(content, `"name":"a"`) && (bom.Components == nil || len(*bom.Components) != 1) {
+			t.Errorf("%q: components = %v", content, bom.Components)
+		}
 		switch {
 		case want == "" && err != nil:
 			t.Errorf("%q: %v", content, err)
@@ -34,7 +42,9 @@ func TestReadBOMNamesOtherFormats(t *testing.T) {
 func TestCheckPrintsVersionAndReminder(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "sbom.json")
-	os.WriteFile(p, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6"}`), 0o644)
+	if err := os.WriteFile(p, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	summary := filepath.Join(dir, "summary.md")
 	var stdout, stderr bytes.Buffer
 	runCheck([]string{"sbom", p, "--summary", summary}, &stdout, &stderr)
