@@ -42,6 +42,10 @@ type Advisory struct {
 
 	Date time.Time // when the draft was written
 	Tool string    // "shipward 1.2.3", for the disclaimer
+
+	// Unfixed is for a notice before a fix (CRA Art. 14(8)): no fixed version, and the remediation is what users can
+	// do to mitigate (CSAF category "mitigation") instead of a vendor fix.
+	Unfixed bool
 }
 
 // Note is the disclaimer every draft carries.
@@ -87,7 +91,10 @@ func CSAF(a Advisory) ([]byte, error) {
 	if len(a.Affected) == 0 {
 		errs = append(errs, errors.New("CSAF needs the affected versions (--affected)"))
 	}
-	if a.FixedIn == "" {
+	switch {
+	case a.Unfixed && a.RemediationText() == "":
+		errs = append(errs, errors.New("CSAF needs what users can do (user_measures in report.yaml)"))
+	case !a.Unfixed && a.FixedIn == "":
 		errs = append(errs, errors.New("CSAF needs the version with the fix (--fixed-in)"))
 	}
 	if !strings.HasPrefix(a.Namespace, "https://") && !strings.HasPrefix(a.Namespace, "http://") {
@@ -124,8 +131,19 @@ func CSAF(a Advisory) ([]byte, error) {
 		versions = append(versions, branch("product_version", v, productID(v), a.Product+" "+v))
 		affectedIDs = append(affectedIDs, productID(v))
 	}
-	fixedID := productID(a.FixedIn)
-	versions = append(versions, branch("product_version", a.FixedIn, fixedID, a.Product+" "+a.FixedIn))
+	fixedID := ""
+	if a.FixedIn != "" {
+		fixedID = productID(a.FixedIn)
+		versions = append(versions, branch("product_version", a.FixedIn, fixedID, a.Product+" "+a.FixedIn))
+	}
+	status := map[string]any{"known_affected": affectedIDs}
+	if fixedID != "" {
+		status["fixed"] = []string{fixedID}
+	}
+	remediation := "vendor_fix"
+	if a.Unfixed {
+		remediation = "mitigation"
+	}
 
 	title := a.Title
 	if title == "" {
@@ -136,14 +154,11 @@ func CSAF(a Advisory) ([]byte, error) {
 		description = "TODO: what the vulnerability is."
 	}
 	vuln := map[string]any{
-		"title": title,
-		"notes": []any{map[string]any{"category": "description", "title": "Description", "text": description}},
-		"product_status": map[string]any{
-			"known_affected": affectedIDs,
-			"fixed":          []string{fixedID},
-		},
+		"title":          title,
+		"notes":          []any{map[string]any{"category": "description", "title": "Description", "text": description}},
+		"product_status": status,
 		"remediations": []any{map[string]any{
-			"category":    "vendor_fix",
+			"category":    remediation,
 			"details":     a.RemediationText(),
 			"product_ids": affectedIDs,
 		}},
@@ -240,7 +255,7 @@ func system(id string) string {
 	case strings.HasPrefix(id, "EUVD-"):
 		return "EUVD"
 	}
-	if i := strings.IndexAny(id, "-:"); i > 0 {
+	if i := strings.IndexAny(id, "-:"); i > 0 && strings.Trim(id[:i], "0123456789") != "" {
 		return id[:i]
 	}
 	return "manufacturer"

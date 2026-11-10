@@ -259,3 +259,25 @@ func TestReportNewWarnsWhenTracked(t *testing.T) {
 		t.Errorf("warning with the ignore file:\n%s", errOut.String())
 	}
 }
+
+func TestReportDraftsCSAF(t *testing.T) {
+	dir := t.TempDir()
+	cfg := filepath.Join(dir, "shipward.yaml")
+	os.WriteFile(cfg, []byte("product:\n  name: Example Game\nmanufacturer:\n  name: Maker\n  url: https://example.com\n"), 0o644)
+	var out, errOut bytes.Buffer
+	if code := reportNew([]string{"incident", "--config", cfg, "--title", "Hit", "--version", "1.3.0"}, &out, &errOut, time.Now()); code != 0 {
+		t.Fatalf("new: %d %s", code, errOut.String())
+	}
+	id := strings.Fields(out.String())[1]
+	errOut.Reset()
+	if code := reportDrafts([]string{id, "--config", cfg, "--csaf"}, &out, &errOut); code != 2 || !strings.Contains(errOut.String(), "user_measures") {
+		t.Errorf("csaf without user measures: %d %s", code, errOut.String())
+	}
+	yaml := filepath.Join(dir, "cra", "reports", id, "report.yaml")
+	body, _ := os.ReadFile(yaml)
+	os.WriteFile(yaml, append(body, []byte("user_measures:\n  - Do not install updates until further notice.\n")...), 0o600)
+	out.Reset()
+	if code := reportDrafts([]string{id, "--config", cfg, "--csaf"}, &out, &errOut); code != 0 || !strings.Contains(out.String(), "users.csaf.json") {
+		t.Errorf("drafts --csaf: %d %s %s", code, out.String(), errOut.String())
+	}
+}
