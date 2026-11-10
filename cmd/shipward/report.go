@@ -23,8 +23,8 @@ const reportUsage = `usage:
                                                      (the reports in this order; not before aware, not in the future)
   shipward report drafts CASE [--force]                   write the drafts again from report.yaml
 
-TIME is RFC 3339 (2026-11-06T14:00:00+01:00) or "2026-11-06 14:00" in local time; default now. report.yaml reads
-times without an offset as local time too.
+TIME is RFC 3339 (2026-11-06T14:00:00+01:00) or "2026-11-06 14:00" in local time (the case's zone in report.yaml,
+set by report new); default now. report.yaml reads times without an offset the same way.
 Reports go to your CSIRT coordinator through ENISA's single reporting platform; a person submits them there.
 `
 
@@ -189,7 +189,7 @@ func reportNew(args []string, stdout, stderr io.Writer, now time.Time) int {
 			return 2
 		}
 	}
-	c := &report.Case{Type: kind, Title: *title, Aware: at, Advisories: advisories, Components: components,
+	c := &report.Case{Type: kind, Title: *title, Zone: report.LocalZone(), Aware: at, Advisories: advisories, Components: components,
 		Versions: versions, MemberStates: cfg.Product.Markets}
 	if kind == report.Incident {
 		c.Malicious = *malicious
@@ -239,9 +239,16 @@ func reportMark(kind string, args []string, stdout, stderr io.Writer, now time.T
 		fmt.Fprintf(stderr, "shipward report %s: %v\n", kind, err)
 		return 1
 	}
+	id := fs.Arg(0)
+	dir := filepath.Join(cfg.Resolve(cfg.Reports.Dir), id)
+	c, err := report.Load(dir, time.Local)
+	if err != nil {
+		fmt.Fprintf(stderr, "shipward report %s: %v\n", kind, err)
+		return 1
+	}
 	at := now.Truncate(time.Second)
 	if *atFlag != "" {
-		if at, err = report.ParseTime(*atFlag, time.Local); err != nil {
+		if at, err = report.ParseTime(*atFlag, c.Location(time.Local)); err != nil {
 			fmt.Fprintf(stderr, "shipward report %s: %v\n", kind, err)
 			return 2
 		}
@@ -249,13 +256,6 @@ func reportMark(kind string, args []string, stdout, stderr io.Writer, now time.T
 			fmt.Fprintf(stderr, "shipward report %s: --at is in the future\n", kind)
 			return 2
 		}
-	}
-	id := fs.Arg(0)
-	dir := filepath.Join(cfg.Resolve(cfg.Reports.Dir), id)
-	c, err := report.Load(dir, time.Local)
-	if err != nil {
-		fmt.Fprintf(stderr, "shipward report %s: %v\n", kind, err)
-		return 1
 	}
 	if kind == "fixed" {
 		if c.Type == report.Incident {

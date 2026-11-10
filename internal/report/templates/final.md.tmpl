@@ -7,8 +7,7 @@
 moves earlier when you record the notification with `shipward report done {{ .ID }} notification`.{{ end }}
 {{- else -}}
 **Due {{ if .Due.Final.IsZero }}14 days after a corrective or mitigating measure is available (record it with `shipward report fixed {{ .ID }}`){{ else }}{{ when .Due.Final }}{{ end }}** (CRA Article 14(2)(c)).
-{{- if .FinalHint }} A measure was available long before you became aware, so the 14 days ended before the notification is
-due: send the final report with the notification.{{ end }}
+{{- with .FinalHint }} Note: {{ sentence . }}{{ end }}
 {{- end }}
 Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIRT coordinator" }}. Then run
 `shipward report done {{ .ID }} final`.

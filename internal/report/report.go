@@ -38,6 +38,9 @@ var Stages = []string{EarlyWarning, Notification, Final, Users}
 type Case struct {
 	Type  string `yaml:"type"`
 	Title string `yaml:"title"`
+	// Zone is the time zone of the case (IANA, Europe/Ljubljana): times without an offset are read in it, and one month
+	// is counted in it. Empty: the computer's zone for times without an offset, each time's own offset for months.
+	Zone string `yaml:"zone,omitempty"`
 	// Aware is when the manufacturer became aware of the exploited vulnerability or the severe incident: the 24- and
 	// 72-hour clocks start here.
 	Aware time.Time `yaml:"aware"`
@@ -66,7 +69,7 @@ type Case struct {
 // Header is written at the top of report.yaml.
 const Header = `# A case to report under the EU Cyber Resilience Act, Article 14 (shipward report). It describes a vulnerability or an
 # incident that may not be fixed or public yet: keep it out of public repositories. Times are RFC 3339; a time without an
-# offset (2026-11-06 14:00) is local time.
+# offset (2026-11-06 14:00) is in the case's zone (or this computer's, when zone is empty).
 `
 
 // Validate checks a case.
@@ -80,6 +83,11 @@ func (c Case) Validate() error {
 	}
 	if c.Aware.IsZero() {
 		errs = append(errs, errors.New("aware is required"))
+	}
+	if c.Zone != "" {
+		if _, err := time.LoadLocation(c.Zone); err != nil || c.Zone == "Local" {
+			errs = append(errs, fmt.Errorf("zone %q is not a time zone name (Europe/Ljubljana)", c.Zone))
+		}
 	}
 	switch c.Malicious {
 	case "", "yes", "no", "unknown":
@@ -131,20 +139,24 @@ func (c Case) Deadlines() []Deadline {
 		final.Why = "14 days after a corrective or mitigating measure is available"
 		if c.FixAvailable != nil {
 			final.Due = c.FixAvailable.Add(14 * 24 * time.Hour)
-			if final.Due.Before(notification) {
-				// The measure was available long before the manufacturer became aware: the 14 days ended before the
-				// notification is due. Ask for the final report together with the notification.
+			switch {
+			case final.Due.Before(c.Aware):
+				// The 14 days ended before the manufacturer became aware (the flaw was fixed in a newer release long
+				// ago). The law gives no date for this; ask for the final report together with the notification.
 				final.Due = notification
-				final.Hint = "a measure was available before you became aware: send the final report with the notification"
+				final.Hint = "the 14 days after the fix ended before you became aware: send the final report with the notification"
+			case !final.Due.After(notification):
+				final.Hint = "the 14 days after the fix end before the notification is due: send the notification and the final report together by then"
 			}
 		}
 	} else {
 		final.Why = "one month after the incident notification was submitted"
+		// One month is counted in the case's zone, so the result is the same on every computer.
 		if n, ok := c.Submitted[Notification]; ok {
-			final.Due = AddMonth(n)
+			final.Due = AddMonth(c.in(n))
 		} else {
 			// Not recorded yet: the notification is due 72 hours after awareness at the latest.
-			final.Due, final.Latest = AddMonth(notification), true
+			final.Due, final.Latest = AddMonth(c.in(notification)), true
 			final.Hint = "one month after the notification's deadline; it moves earlier when you record the notification"
 		}
 	}
@@ -211,8 +223,8 @@ func (c Case) Next() (Deadline, bool) {
 	return Deadline{}, false
 }
 
-// Load reads a case folder's report.yaml. A time without a zone offset ("2026-11-06 14:00") is in loc, as on the
-// command line.
+// Load reads a case folder's report.yaml. A time without a zone offset ("2026-11-06 14:00") is in the case's zone, or
+// in loc when the case has none, as on the command line.
 func Load(dir string, loc *time.Location) (*Case, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "report.yaml"))
 	if err != nil {
@@ -221,6 +233,11 @@ func Load(dir string, loc *time.Location) (*Case, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("%s: %w", dir, err)
+	}
+	if z := zoneOf(&doc); z != "" {
+		if zl, err := time.LoadLocation(z); err == nil && z != "Local" {
+			loc = zl
+		}
 	}
 	if err := localTimes(&doc, loc); err != nil {
 		return nil, fmt.Errorf("%s: %w", dir, err)
@@ -232,7 +249,22 @@ func Load(dir string, loc *time.Location) (*Case, error) {
 	if err := c.Validate(); err != nil {
 		return nil, fmt.Errorf("%s: %w", dir, err)
 	}
+	c.normalise()
 	return &c, nil
+}
+
+// zoneOf returns the zone key of report.yaml, or "".
+func zoneOf(doc *yaml.Node) string {
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return ""
+	}
+	m := doc.Content[0].Content
+	for i := 0; i+1 < len(m); i += 2 {
+		if m[i].Value == "zone" && m[i+1].Kind == yaml.ScalarNode {
+			return m[i+1].Value
+		}
+	}
+	return ""
 }
 
 // localTimes reads the times in report.yaml (aware, fix_available, each value under submitted) with ParseTime, so a
@@ -279,6 +311,7 @@ func Save(dir string, c *Case) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
+	c.normalise()
 	body, err := yaml.Marshal(c)
 	if err != nil {
 		return err

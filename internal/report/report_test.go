@@ -25,15 +25,26 @@ func TestDeadlines(t *testing.T) {
 		t.Errorf("final after fix = %s", got)
 	}
 
-	early := aware.AddDate(0, 0, -30)
-	v.FixAvailable = &early
-	if got := v.Deadlines()[2]; !got.Due.Equal(aware.Add(72*time.Hour)) || got.Hint == "" {
-		t.Errorf("final with a fix long before awareness = %+v, want the notification's deadline and a hint", got)
-	}
-	shortly := aware.AddDate(0, 0, -5)
-	v.FixAvailable = &shortly
-	if got := v.Deadlines()[2]; !got.Due.Equal(shortly.Add(14*24*time.Hour)) || got.Hint != "" {
-		t.Errorf("final with a fix 5 days before awareness = %+v", got)
+	// A fix before awareness: the real 14-day deadline holds while it is not before awareness; earlier than that, the
+	// final report goes with the notification.
+	for _, tc := range []struct {
+		daysBefore int
+		want       time.Time
+		hint       string
+	}{
+		{5, aware.AddDate(0, 0, 9), ""},
+		{11, aware.Add(72 * time.Hour), "together by then"},
+		{12, aware.Add(48 * time.Hour), "together by then"},
+		{14, aware, "together by then"},
+		{15, aware.Add(72 * time.Hour), "ended before you became aware"},
+		{30, aware.Add(72 * time.Hour), "ended before you became aware"},
+	} {
+		fix := aware.AddDate(0, 0, -tc.daysBefore)
+		v.FixAvailable = &fix
+		got := v.Deadlines()[2]
+		if !got.Due.Equal(tc.want) || (tc.hint == "") != (got.Hint == "") || !strings.Contains(got.Hint, tc.hint) {
+			t.Errorf("fix %d days before awareness: %+v, want due %s, hint %q", tc.daysBefore, got, tc.want, tc.hint)
+		}
 	}
 
 	inc := Case{Type: Incident, Title: "y", Aware: aware}
@@ -54,6 +65,68 @@ func TestDeadlines(t *testing.T) {
 	inc.Submitted = map[string]time.Time{EarlyWarning: inc.Aware, Notification: time.Date(2026, 1, 31, 10, 0, 0, 0, cet)}
 	if got := inc.Deadlines()[2].Due; !got.Equal(time.Date(2026, 2, 28, 10, 0, 0, 0, cet)) {
 		t.Errorf("incident final after a notification on 31 Jan = %s, want 28 Feb", got)
+	}
+}
+
+// TestMonthInZone: a saved case gives the same final deadline on every computer, also across a change to summer time.
+func TestMonthInZone(t *testing.T) {
+	budapest, err := time.LoadLocation("Europe/Budapest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := time.Local
+	t.Cleanup(func() { time.Local = saved })
+	notification := "2026-03-25T10:00:00+01:00"
+	for _, tc := range []struct {
+		zone string
+		want time.Time
+	}{
+		{"Europe/Budapest", time.Date(2026, 4, 25, 10, 0, 0, 0, budapest)},  // 10:00 summer time, 08:00 UTC
+		{"", time.Date(2026, 4, 25, 10, 0, 0, 0, time.FixedZone("", 3600))}, // no zone: the offset of the notification
+	} {
+		var got []time.Time
+		for _, local := range []*time.Location{budapest, time.UTC} {
+			time.Local = local
+			dir := t.TempDir()
+			zone := ""
+			if tc.zone != "" {
+				zone = "zone: " + tc.zone + "\n"
+			}
+			os.WriteFile(filepath.Join(dir, "report.yaml"), []byte("type: incident\ntitle: x\n"+zone+
+				"aware: 2026-03-23T10:00:00+01:00\nsubmitted:\n  early-warning: 2026-03-23T11:00:00+01:00\n  notification: "+notification+"\n"), 0o600)
+			c, err := Load(dir, local)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := Save(dir, c); err != nil {
+				t.Fatal(err)
+			}
+			if c, err = Load(dir, local); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, c.Deadlines()[2].Due)
+		}
+		if !got[0].Equal(tc.want) || !got[1].Equal(tc.want) {
+			t.Errorf("zone %q: final due %s (Budapest computer), %s (UTC computer), want %s", tc.zone, got[0], got[1], tc.want)
+		}
+	}
+}
+
+func TestZone(t *testing.T) {
+	dir := t.TempDir()
+	// Times without an offset are read in the case's zone, not the computer's.
+	os.WriteFile(filepath.Join(dir, "report.yaml"), []byte("type: vulnerability\ntitle: x\nzone: Europe/Budapest\naware: 2026-07-01 10:00\n"), 0o600)
+	c, err := Load(dir, time.UTC)
+	if err != nil || !c.Aware.Equal(time.Date(2026, 7, 1, 8, 0, 0, 0, time.UTC)) {
+		t.Errorf("aware = %v, %v; want 10:00 summer time in Budapest", c, err)
+	}
+	if err := (Case{Type: Vulnerability, Title: "x", Aware: time.Now(), Zone: "Mars/Olympus"}).Validate(); err == nil ||
+		!strings.Contains(err.Error(), `zone "Mars/Olympus"`) {
+		t.Errorf("bad zone: %v", err)
+	}
+	t.Setenv("TZ", "Europe/Budapest")
+	if z := LocalZone(); z != "Europe/Budapest" && z != "" {
+		t.Errorf("LocalZone = %q", z)
 	}
 }
 
@@ -219,7 +292,7 @@ func TestVulnerabilityDrafts(t *testing.T) {
 		t.Errorf("vulnerability early warning:\n%s", early)
 	}
 	final, _ := os.ReadFile(filepath.Join(dir, "final.md"))
-	if !strings.Contains(string(final), "Due Sun 8 Nov 2026 15:00 CET") || !strings.Contains(string(final), "send the final report with the notification") {
+	if !strings.Contains(string(final), "Due Sun 8 Nov 2026 15:00 CET") || !strings.Contains(string(final), "Note: the 14 days after the fix ended before you became aware: send the final report with the notification.") {
 		t.Errorf("final with an old fix:\n%s", final)
 	}
 }
