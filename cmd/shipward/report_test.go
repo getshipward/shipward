@@ -238,10 +238,21 @@ func TestReportNewWarnsWhenTracked(t *testing.T) {
 		t.Errorf("warning:\n%s", errOut.String())
 	}
 
-	// With the default ignore file, no warning.
+	// The folder exists: no .gitignore is written behind the person's back.
 	os.Remove(filepath.Join(dir, "cra", "reports", ".gitignore"))
 	errOut.Reset()
+	out.Reset()
 	if code := reportNew([]string{"vulnerability", "--config", cfg, "--title", "Other"}, &out, &errOut, time.Now()); code != 0 {
+		t.Fatalf("new: %d %s", code, errOut.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "cra", "reports", ".gitignore")); err == nil || strings.Contains(out.String(), "git ignores") {
+		t.Errorf("wrote .gitignore into an existing folder:\n%s", out.String())
+	}
+
+	// A new folder gets the ignore file, and then no warning.
+	os.RemoveAll(filepath.Join(dir, "cra"))
+	errOut.Reset()
+	if code := reportNew([]string{"vulnerability", "--config", cfg, "--title", "Third"}, &out, &errOut, time.Now()); code != 0 {
 		t.Fatalf("new: %d %s", code, errOut.String())
 	}
 	if strings.Contains(errOut.String(), "warning") {

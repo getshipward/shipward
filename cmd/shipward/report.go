@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -219,6 +220,11 @@ func reportNew(args []string, stdout, stderr io.Writer, now time.Time) int {
 		fmt.Fprintf(stderr, "shipward report new: %s exists already\n", dir)
 		return 1
 	}
+	// A new reports folder gets a .gitignore. An existing one is left as it is: in a private repository the person
+	// may have deleted the file on purpose to keep the cases.
+	reportsDir := cfg.Resolve(cfg.Reports.Dir)
+	_, statErr := os.Stat(reportsDir)
+	newFolder := errors.Is(statErr, os.ErrNotExist)
 	if err := report.Save(dir, c); err != nil {
 		fmt.Fprintf(stderr, "shipward report new: %v\n", err)
 		return 1
@@ -227,10 +233,12 @@ func reportNew(args []string, stdout, stderr io.Writer, now time.Time) int {
 		fmt.Fprintf(stderr, "shipward report new: %v\n", err)
 		return 1
 	}
-	wroteIgnore, err := report.IgnoreCases(cfg.Resolve(cfg.Reports.Dir))
-	if err != nil {
-		fmt.Fprintf(stderr, "shipward report new: %v\n", err)
-		return 1
+	wroteIgnore := false
+	if newFolder {
+		if wroteIgnore, err = report.IgnoreCases(reportsDir); err != nil {
+			fmt.Fprintf(stderr, "shipward report new: %v\n", err)
+			return 1
+		}
 	}
 	fmt.Fprintf(stdout, "opened %s (%s)\n\n", id, dir)
 	printStages(stdout, c, id, now)
@@ -239,7 +247,7 @@ func reportNew(args []string, stdout, stderr io.Writer, now time.Time) int {
 	fmt.Fprintln(stdout, "These files describe something that may not be public yet: keep them out of public repositories.")
 	if wroteIgnore {
 		fmt.Fprintf(stdout, "Wrote %s, so git ignores the cases. In a private repository that should keep them, delete it.\n",
-			filepath.Join(cfg.Resolve(cfg.Reports.Dir), ".gitignore"))
+			filepath.Join(reportsDir, ".gitignore"))
 	}
 	if remote := report.TrackedWithRemote(dir); remote != "" {
 		fmt.Fprintf(stderr, "warning: git does not ignore %s, and this repository has a remote (%s).\n"+
