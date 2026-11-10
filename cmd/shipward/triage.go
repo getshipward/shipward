@@ -40,7 +40,7 @@ func runTriage(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	}
 	switch sub {
 	case "set":
-		return triageSet(args, stdout, stderr)
+		return triageSet(ctx, args, stdout, stderr)
 	case "export":
 		return triageExport(ctx, args, stdout, stderr)
 	}
@@ -73,6 +73,11 @@ func triageList(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		n++
 		fmt.Fprintf(stdout, "%s  %s  %s\n", f.Component, f.ID, f.Summary)
 		fmt.Fprintf(stdout, "    %s\n    now: %s\n", strings.Join(facts(f), "; "), decisionText(f))
+		if f.Exploited() {
+			for _, line := range reportHint(f) {
+				fmt.Fprintf(stdout, "    %s\n", line)
+			}
+		}
 		fmt.Fprintf(stdout, "    shipward triage set %s %s --status not_affected --justification ... --impact \"...\"\n\n", f.ID, plainPURL(f.PURL, true))
 	}
 	if n == 0 {
@@ -133,7 +138,7 @@ func plainPURL(s string, withVersion bool) string {
 	return p.ToString()
 }
 
-func triageSet(args []string, stdout, stderr io.Writer) int {
+func triageSet(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("triage set", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml")
@@ -146,6 +151,9 @@ func triageSet(args []string, stdout, stderr io.Writer) int {
 	advisoryAt := fs.String("advisory", "", "fixed: where the advisory about it is published (URL)")
 	date := fs.String("date", time.Now().Format(time.DateOnly), "date of the decision (YYYY-MM-DD)")
 	allVersions := fs.Bool("all-versions", false, "apply to every version of the component, not only this one")
+	sf := scanFlags{offline: true} // affected: look the advisory up in the cached snapshot, without a request
+	fs.StringVar(&sf.base, "snapshot", snapshot.DefaultURL, "snapshot URL or folder whose cached copy says whether the advisory is known to be exploited")
+	fs.StringVar(&sf.trustKey, "trust-key", "", "also accept snapshots signed with this Ed25519 public key (base64)")
 	if err := parse(fs, args); err != nil {
 		return 2
 	}
@@ -176,7 +184,47 @@ func triageSet(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "If your product was affected, the CRA asks for an advisory once the update is out (Annex I Part II(4)):")
 		fmt.Fprintf(stdout, "shipward advisory new %s, then record --fixed-in and --advisory here.\n", s.ID)
 	}
+	if s.Status == vex.Affected {
+		sf.cfgPath = *cfgPath
+		affectedHint(ctx, stdout, sf, s)
+	}
 	return 0
+}
+
+// affectedHint looks the advisory up in the cached snapshot (no request) and, when CISA or ENISA list it as
+// exploited, says what that means for reporting (CRA Art. 14). When the lookup cannot tell (no cached snapshot, no
+// finding for this advisory, or an exploitation list missing), it says so and gives the same guidance.
+func affectedHint(ctx context.Context, w io.Writer, sf scanFlags, s vex.Statement) {
+	rep, _, err := sf.run(ctx, "")
+	why := ""
+	switch {
+	case err != nil:
+		why = err.Error()
+	default:
+		found := false
+		for _, f := range rep.Findings {
+			if vex.Find([]vex.Statement{s}, f.IDs(), f.PURL) == nil {
+				continue
+			}
+			found = true
+			if f.Exploited() {
+				for _, line := range reportHint(f) {
+					fmt.Fprintln(w, line)
+				}
+				return
+			}
+		}
+		if missing := rep.MissingExploitedFeeds(); !found {
+			why = "the cached snapshot has no advisory " + s.ID + " for " + s.Component
+		} else if len(missing) > 0 {
+			why = strings.Join(missing, " and ") + " could not be loaded"
+		} else {
+			return // both lists were checked and neither names it
+		}
+	}
+	fmt.Fprintf(w, "Could not check whether %s is known to be exploited (%s). Decide whether it is actively exploited\n"+
+		"in your product (CRA Art. 3(42), 14(1)). If it is, the 24-hour early warning may already be due:\n  %s\n%s\n",
+		s.ID, why, reportCommand(s.ID+" in "+s.Component, s.ID, s.Component), awareLine)
 }
 
 func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) int {

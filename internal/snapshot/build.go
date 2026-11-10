@@ -69,7 +69,7 @@ func (b *Builder) Build(ctx context.Context, dir string, key ed25519.PrivateKey)
 	if err := os.MkdirAll(filepath.Join(dir, run), 0o755); err != nil {
 		return nil, err
 	}
-	idx := Index{Format: Format, Created: now}
+	idx := Index{Format: Format, Created: now, Expires: now.Add(Validity)}
 	var written []string
 	used := map[string]bool{}
 

@@ -6,6 +6,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"math"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -35,7 +37,8 @@ type Finding struct {
 	CVSS      string   `json:"cvss,omitempty"`
 	Fixed     []string `json:"fixed,omitempty"`
 	URL       string   `json:"url"`
-	// Exploited in the wild, per CISA KEV and/or ENISA EUVD (date or ID), and FIRST's EPSS.
+	// Exploited in the wild, per CISA KEV (the date it was added, or KEVNoDate) and/or ENISA EUVD (its ID), and
+	// FIRST's EPSS.
 	KEV  string         `json:"kev,omitempty"`
 	EUVD string         `json:"euvd,omitempty"`
 	EPSS *snapshot.EPSS `json:"epss,omitempty"`
@@ -44,7 +47,8 @@ type Finding struct {
 	Decision *vex.Statement `json:"decision,omitempty"`
 }
 
-// Exploited reports whether CISA or ENISA list the advisory as exploited.
+// Exploited reports whether CISA or ENISA list the advisory as exploited somewhere. That alone does not make it an
+// actively exploited vulnerability in the maker's product (CRA Art. 3(42), 14(1)): a person decides that.
 func (f Finding) Exploited() bool { return f.KEV != "" || f.EUVD != "" }
 
 // NeedsWork reports whether the finding has no final decision (open, under investigation, or affected).
@@ -53,16 +57,43 @@ func (f Finding) NeedsWork() bool { return !vex.Final(f.State) }
 // IDs returns the advisory ID and its aliases.
 func (f Finding) IDs() []string { return append([]string{f.ID}, f.Aliases...) }
 
+// KEVNoDate is Finding.KEV for an advisory on CISA's list whose entry has no date: being on the list is what counts.
+const KEVNoDate = "listed"
+
+// Names of the feeds in Report.Feeds.
+const (
+	FeedKEV  = "CISA KEV"
+	FeedEUVD = "ENISA EUVD"
+	FeedEPSS = "EPSS"
+)
+
+// StaleAfter is the age after which a scan warns that its data is old. The snapshot is made daily.
+const StaleAfter = 48 * time.Hour
+
+// Feed is the state of one exploitation feed in a scan.
+type Feed struct {
+	Name string `json:"name"`
+	// Used is false when the feed could not be loaded: then nothing from it is in the findings.
+	Used bool `json:"used"`
+	// Date is when the copy used was made: for KEV the snapshot's date, for EUVD and EPSS when shipward fetched it.
+	Date     time.Time `json:"date,omitzero"`
+	AgeHours *float64  `json:"age_hours,omitempty"`
+}
+
 // Report is the result of one scan.
 type Report struct {
-	SBOM       string            `json:"sbom"`
-	Snapshot   time.Time         `json:"snapshot"`
-	Warnings   []string          `json:"warnings,omitempty"`
-	Checked    int               `json:"checked"`
-	NotChecked []string          `json:"not_checked,omitempty"`
-	Findings   []Finding         `json:"findings"`
-	Unused     []vex.Statement   `json:"unused_decisions,omitempty"`
-	Sources    []snapshot.Source `json:"sources"`
+	SBOM     string    `json:"sbom"`
+	Snapshot time.Time `json:"snapshot"`
+	// SnapshotAgeHours is the snapshot's age at scan time; SnapshotExpires is when its builder stops standing behind it.
+	SnapshotAgeHours float64           `json:"snapshot_age_hours"`
+	SnapshotExpires  time.Time         `json:"snapshot_expires,omitzero"`
+	Feeds            []Feed            `json:"feeds"`
+	Warnings         []string          `json:"warnings,omitempty"`
+	Checked          int               `json:"checked"`
+	NotChecked       []string          `json:"not_checked,omitempty"`
+	Findings         []Finding         `json:"findings"`
+	Unused           []vex.Statement   `json:"unused_decisions,omitempty"`
+	Sources          []snapshot.Source `json:"sources"`
 }
 
 // Options configure a scan.
@@ -75,6 +106,7 @@ type Options struct {
 	Offline   bool
 	UserAgent string
 	CacheDir  string // default snapshot.DefaultCacheDir()
+	Now       func() time.Time
 }
 
 type target struct {
@@ -84,6 +116,10 @@ type target struct {
 
 // Run scans the SBOM.
 func Run(ctx context.Context, o Options) (*Report, error) {
+	now := o.Now
+	if now == nil {
+		now = time.Now
+	}
 	cache := o.CacheDir
 	if cache == "" {
 		cache = snapshot.DefaultCacheDir()
@@ -142,23 +178,48 @@ func Run(ctx context.Context, o Options) (*Report, error) {
 		}
 	}
 
-	rep := &Report{SBOM: o.SBOM, Snapshot: data.Index.Created, Checked: len(targets), NotChecked: notChecked,
+	at := now()
+	rep := &Report{SBOM: o.SBOM, Snapshot: data.Index.Created, SnapshotExpires: data.Index.Expires,
+		SnapshotAgeHours: hours(at.Sub(data.Index.Created)), Checked: len(targets), NotChecked: notChecked,
 		Findings: []Finding{}, Sources: data.Index.Sources}
 	if data.Warning != "" {
 		rep.Warnings = append(rep.Warnings, data.Warning)
 	}
+	if age := at.Sub(data.Index.Created); age > StaleAfter {
+		rep.Warnings = append(rep.Warnings, fmt.Sprintf("the vulnerability snapshot is %s old (made %s): advisories published since then are missing",
+			Age(age), data.Index.Created.UTC().Format("2006-01-02 15:04 MST")))
+	}
+	if !data.Index.Expires.IsZero() && at.After(data.Index.Expires) {
+		rep.Warnings = append(rep.Warnings, fmt.Sprintf("the vulnerability snapshot expired on %s: no newer one could be loaded",
+			data.Index.Expires.UTC().Format("2006-01-02 15:04 MST")))
+	}
+	// The catalog is never empty: a list without one CVE ID means a broken snapshot.
+	usableKEV := map[string]snapshot.KEV{}
+	for id, k := range data.Exploited.KEV {
+		if id = strings.TrimSpace(id); snapshot.ValidCVE(id) {
+			usableKEV[id] = k
+		}
+	}
+	data.Exploited.KEV = usableKEV
+	kev := Feed{Name: FeedKEV, Used: len(usableKEV) > 0}
+	if kev.Used {
+		kev.Date, kev.AgeHours = data.Index.Created, ptr(hours(at.Sub(data.Index.Created)))
+	} else {
+		rep.Warnings = append(rep.Warnings, "the snapshot has no usable CISA KEV list: no advisory is marked as exploited by CISA")
+	}
+	rep.Feeds = append(rep.Feeds, kev)
 	type match struct {
 		t target
 		v *osv.Vulnerability
 	}
 	var matches []match
-	cves := map[string]bool{}
+	ids := map[string]bool{}
 	for _, t := range targets {
 		for _, v := range byPackage[osv.Key(t.pkg)] {
 			if v.Affects(t.pkg, t.version) {
 				matches = append(matches, match{t, v})
-				for _, c := range v.CVEs() {
-					cves[c] = true
+				for _, id := range append([]string{v.ID}, v.Aliases...) {
+					ids[id] = true
 				}
 			}
 		}
@@ -171,12 +232,28 @@ func Run(ctx context.Context, o Options) (*Report, error) {
 		EUVDURL:  snapshot.EUVDURL,
 		EPSSURL:  snapshot.EPSSURL,
 		MaxAge:   20 * time.Hour,
-		Now:      time.Now,
+		Now:      now,
 		Offline:  o.Offline,
-	}).Load(ctx, cves)
+	}).Load(ctx, ids)
 	rep.Warnings = append(rep.Warnings, live.Warnings...)
 	data.Exploited.EUVD, data.Exploited.EPSS = live.EUVD, live.EPSS
-	rep.Sources = append(rep.Sources, snapshot.LiveSources...)
+	euvd := liveFeed(FeedEUVD, live.EUVD != nil, live.EUVDFetched, at)
+	epss := liveFeed(FeedEPSS, live.EPSS != nil, live.EPSSFetched, at)
+	rep.Feeds = append(rep.Feeds, euvd, epss)
+	if euvd.Used {
+		rep.Sources = append(rep.Sources, snapshot.EUVDSource)
+	} else {
+		rep.Warnings = append(rep.Warnings, "ENISA's list of exploited vulnerabilities (EUVD) could not be loaded: exploitation was checked against CISA KEV only")
+	}
+	if epss.Used {
+		rep.Sources = append(rep.Sources, snapshot.EPSSSource)
+	}
+	for _, f := range []Feed{euvd, epss} {
+		if f.Used && !f.Date.IsZero() && at.Sub(f.Date) > StaleAfter {
+			rep.Warnings = append(rep.Warnings, fmt.Sprintf("the %s copy is %s old (fetched %s)", f.Name, Age(at.Sub(f.Date)),
+				f.Date.UTC().Format("2006-01-02 15:04 MST")))
+		}
+	}
 
 	used := map[*vex.Statement]bool{}
 	for _, m := range matches {
@@ -204,19 +281,76 @@ func newFinding(t target, v *osv.Vulnerability, ex snapshot.Exploited) Finding {
 			f.CVSS = s.Score
 		}
 	}
-	for _, cve := range v.CVEs() {
-		if k, ok := ex.KEV[cve]; ok && f.KEV == "" {
-			f.KEV = k.Added
+	// Every ID of the advisory, not only CVEs: ENISA also lists GHSA and its own EUVD IDs.
+	for _, id := range f.IDs() {
+		if k, ok := ex.KEV[id]; ok && f.KEV == "" {
+			f.KEV = strings.TrimSpace(k.Added)
+			if f.KEV == "" {
+				f.KEV = KEVNoDate
+			}
 		}
-		if e, ok := ex.EUVD[cve]; ok && f.EUVD == "" {
+		if e, ok := ex.EUVD[id]; ok && f.EUVD == "" {
 			f.EUVD = e.ID
 		}
-		if s, ok := ex.EPSS[cve]; ok && (f.EPSS == nil || s.Score > f.EPSS.Score) {
+		if s, ok := ex.EPSS[id]; ok && (f.EPSS == nil || s.Score > f.EPSS.Score) {
 			f.EPSS = &s
 		}
 	}
 	return f
 }
+
+// MissingExploitedFeeds names the exploitation feeds (CISA KEV, ENISA EUVD) that this scan could not use.
+func (r *Report) MissingExploitedFeeds() []string {
+	var out []string
+	for _, f := range r.Feeds {
+		if !f.Used && (f.Name == FeedKEV || f.Name == FeedEUVD) {
+			out = append(out, f.Name)
+		}
+	}
+	return out
+}
+
+// OlderThan describes the data of this scan that is older than max: the snapshot and the feeds it used.
+func (r *Report) OlderThan(max time.Duration, now time.Time) []string {
+	var out []string
+	if age := now.Sub(r.Snapshot); age > max {
+		out = append(out, fmt.Sprintf("the snapshot is %s old", Age(age)))
+	}
+	for _, f := range r.Feeds {
+		if f.Name == FeedKEV || !f.Used || f.Date.IsZero() {
+			continue // KEV is part of the snapshot
+		}
+		if age := now.Sub(f.Date); age > max {
+			out = append(out, fmt.Sprintf("the %s copy is %s old", f.Name, Age(age)))
+		}
+	}
+	return out
+}
+
+func liveFeed(name string, used bool, fetched, now time.Time) Feed {
+	f := Feed{Name: name, Used: used}
+	if used && !fetched.IsZero() {
+		f.Date, f.AgeHours = fetched.UTC(), ptr(hours(now.Sub(fetched)))
+	}
+	return f
+}
+
+// Age writes a duration for people: minutes, hours or days.
+func Age(d time.Duration) string {
+	d = max(d, 0) // a clock slightly behind the builder's
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%d min", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%d h", int(d.Hours()))
+	}
+	return fmt.Sprintf("%d days", int(d.Hours()/24))
+}
+
+// hours is a duration in hours, to one decimal.
+func hours(d time.Duration) float64 { return math.Round(d.Hours()*10) / 10 }
+
+func ptr[T any](v T) *T { return &v }
 
 // rank orders states: affected first, then open and under investigation, then the closed ones.
 func rank(state string) int {

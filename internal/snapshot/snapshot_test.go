@@ -100,6 +100,9 @@ func TestBuildAndLoad(t *testing.T) {
 	if ex := d.Exploited; ex.KEV["CVE-2024-0001"].Added != "2026-11-01" || ex.EUVD != nil || ex.EPSS != nil {
 		t.Errorf("exploited = %+v; want KEV only (EUVD and EPSS are not passed on)", ex)
 	}
+	if want := d.Index.Created.Add(Validity); !d.Index.Expires.Equal(want) {
+		t.Errorf("expires = %s, want %s", d.Index.Expires, want)
+	}
 	if len(d.Index.Sources) != 1 || d.Index.Sources[0].Name != "GHSA" {
 		t.Errorf("sources = %+v", d.Index.Sources)
 	}
@@ -200,17 +203,109 @@ func TestLive(t *testing.T) {
 	if len(d.Warnings) != 0 || d.EUVD["CVE-2024-0001"].ExploitedSince != "2026-11-04" || d.EPSS["CVE-2024-0001"].Score != 0.5 || d.EPSSDate != "2026-11-06T12:55:00Z" {
 		t.Fatalf("live = %+v", d)
 	}
+	// ENISA's own ID and every alias find the entry, not only the CVE.
+	for _, id := range []string{"EUVD-2024-1", "GHSA-aaaa"} {
+		if d.EUVD[id].ID != "EUVD-2024-1" {
+			t.Errorf("EUVD[%s] = %+v", id, d.EUVD[id])
+		}
+	}
+	if !d.EUVDFetched.Equal(now) || !d.EPSSFetched.Equal(now) {
+		t.Errorf("fetched %s, %s; want %s", d.EUVDFetched, d.EPSSFetched, now)
+	}
 	if _, ok := d.EPSS["CVE-2024-9999"]; ok {
 		t.Error("EPSS keeps a CVE nobody asked for")
 	}
 	first := requests
-	l.Load(context.Background(), cves)
+	l.Now = func() time.Time { return now.Add(time.Hour) }
+	if d := l.Load(context.Background(), cves); d.EUVDFetched.After(now.Add(time.Minute)) {
+		t.Errorf("cached copy: fetched %s; want the time of the first fetch", d.EUVDFetched)
+	}
 	if requests != first {
 		t.Errorf("second load made %d requests; want the cached copies", requests-first)
 	}
 
 	offline := &Live{CacheDir: t.TempDir(), Offline: true, Now: time.Now}
-	if d := offline.Load(context.Background(), cves); len(d.Warnings) != 2 || d.EUVD != nil {
+	if d := offline.Load(context.Background(), cves); len(d.Warnings) != 2 || d.EUVD != nil || d.EPSS != nil {
 		t.Errorf("offline without cache = %+v", d)
+	}
+}
+
+func TestEmptyListsAreRefused(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/kev", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{"vulnerabilities":[]}`) })
+	mux.HandleFunc("/kev-empty", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{}`) })
+	mux.HandleFunc("/kev-noid", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"vulnerabilities":[{"cveID":"CVE-"},{"cveID":""},{"cveID":"CVE-2024-x"}]}`)
+	})
+	mux.HandleFunc("/euvd", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{"total":0,"items":[]}`) })
+	mux.HandleFunc("/euvd-noid", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"total":1,"items":[{"id":"","aliases":"CVE-2024-0001"}]}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	f := &Fetcher{HTTP: srv.Client()}
+	for _, u := range []string{"/kev", "/kev-empty", "/kev-noid"} {
+		if _, err := f.KEV(context.Background(), srv.URL+u); err == nil {
+			t.Errorf("KEV %s: accepted", u)
+		}
+	}
+	for _, u := range []string{"/euvd", "/euvd-noid"} {
+		if _, err := f.EUVD(context.Background(), srv.URL+u); err == nil {
+			t.Errorf("EUVD %s: accepted", u)
+		}
+	}
+
+	now := time.Now()
+	cves := map[string]bool{}
+	live := func(cache string, offline bool) *Live {
+		return &Live{Fetcher: f, CacheDir: cache, EUVDURL: srv.URL + "/euvd", EPSSURL: srv.URL + "/none", MaxAge: 20 * time.Hour,
+			Now: func() time.Time { return now }, Offline: offline}
+	}
+
+	// An empty cached copy, or one with only unusable entries, is not used, online or offline.
+	cache := t.TempDir()
+	for _, bad := range []string{`{}`, `{"CVE-2024-0001":{"id":""}}`, `{"CVE-2024-0001":{"id":"  "}}`, `{" ":{"id":"EUVD-2024-1"}}`} {
+		os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(bad), 0o644)
+		for _, offline := range []bool{false, true} {
+			if d := live(cache, offline).Load(context.Background(), cves); d.EUVD != nil {
+				t.Errorf("offline=%v: unusable cached EUVD %s used: %+v", offline, bad, d)
+			}
+		}
+	}
+
+	// Spaces around the key and the ID are dropped, so the entry matches.
+	os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(`{" CVE-2024-0001 ":{"id":" EUVD-2024-1 "}}`), 0o644)
+	for _, offline := range []bool{false, true} {
+		if d := live(cache, offline).Load(context.Background(), cves); d.EUVD["CVE-2024-0001"].ID != "EUVD-2024-1" || len(d.EUVD) != 1 {
+			t.Errorf("offline=%v: padded copy: %+v", offline, d.EUVD)
+		}
+	}
+
+	// Unusable entries next to a usable one are dropped.
+	os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(`{"CVE-2024-0001":{"id":"EUVD-2024-1"},"CVE-2024-0002":{"id":""}}`), 0o644)
+	if d := live(cache, true).Load(context.Background(), cves); len(d.EUVD) != 1 || d.EUVD["CVE-2024-0001"].ID != "EUVD-2024-1" {
+		t.Errorf("mixed copy: %+v", d.EUVD)
+	}
+
+	// An older good copy wins over an empty answer, with a warning, and stays in the cache.
+	good := `{"CVE-2024-0001":{"id":"EUVD-2024-1"}}`
+	os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(good), 0o644)
+	old := now.Add(-30 * time.Hour)
+	os.Chtimes(filepath.Join(cache, "euvd.json"), old, old)
+	d := live(cache, false).Load(context.Background(), cves)
+	if d.EUVD["CVE-2024-0001"].ID != "EUVD-2024-1" || !d.EUVDFetched.Equal(old) || !strings.Contains(strings.Join(d.Warnings, "\n"), "using an older one") {
+		t.Errorf("older copy: %+v", d)
+	}
+	if data, _ := os.ReadFile(filepath.Join(cache, "euvd.json")); string(data) != good {
+		t.Errorf("cache overwritten with %s", data)
+	}
+}
+
+func TestValidCVE(t *testing.T) {
+	for id, want := range map[string]bool{"CVE-2024-0001": true, "CVE-2021-44228": true, "CVE-": false, "CVE-2024-1": false,
+		"CVE-24-0001": false, "GHSA-aaaa": false, " CVE-2024-0001": false, "": false} {
+		if got := ValidCVE(id); got != want {
+			t.Errorf("ValidCVE(%q) = %v", id, got)
+		}
 	}
 }
