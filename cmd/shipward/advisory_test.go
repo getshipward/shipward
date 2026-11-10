@@ -66,7 +66,7 @@ func TestTriageFixedNeedsAdvisory(t *testing.T) {
 	writeFiles(t, dir, map[string]string{"shipward.yaml": "product:\n  name: Example Game\nmanufacturer:\n  name: Maker\n"})
 	cfgPath := filepath.Join(dir, "shipward.yaml")
 	var out, errOut bytes.Buffer
-	if code := triageSet([]string{"GHSA-aaaa", "pkg:npm/a@1.0.0", "--status", "fixed", "--config", cfgPath}, &out, &errOut); code != 0 {
+	if code := triageSet(context.Background(), []string{"GHSA-aaaa", "pkg:npm/a@1.0.0", "--status", "fixed", "--config", cfgPath}, &out, &errOut); code != 0 {
 		t.Fatalf("set: %d %s", code, errOut.String())
 	}
 	if !strings.Contains(out.String(), "shipward advisory new GHSA-aaaa") {
@@ -83,7 +83,7 @@ func TestTriageFixedNeedsAdvisory(t *testing.T) {
 	}
 
 	out.Reset()
-	if code := triageSet([]string{"GHSA-aaaa", "pkg:npm/a@1.0.0", "--status", "fixed", "--fixed-in", "1.1.0",
+	if code := triageSet(context.Background(), []string{"GHSA-aaaa", "pkg:npm/a@1.0.0", "--status", "fixed", "--fixed-in", "1.1.0",
 		"--advisory", "https://example.com/a", "--config", cfgPath}, &out, &errOut); code != 0 {
 		t.Fatalf("set: %d %s", code, errOut.String())
 	}
