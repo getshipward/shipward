@@ -223,8 +223,8 @@ func affectedHint(ctx context.Context, w io.Writer, sf scanFlags, s vex.Statemen
 		}
 	}
 	fmt.Fprintf(w, "Could not check whether %s is known to be exploited (%s). Decide whether it is actively exploited\n"+
-		"in your product (CRA Art. 3(42), 14(1)). If it is, the 24-hour early warning may already be due:\n  %s\n",
-		s.ID, why, reportCommand(s.ID+" in "+s.Component, s.ID, s.Component))
+		"in your product (CRA Art. 3(42), 14(1)). If it is, the 24-hour early warning may already be due:\n  %s\n%s\n",
+		s.ID, why, reportCommand(s.ID+" in "+s.Component, s.ID, s.Component), awareLine)
 }
 
 func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) int {

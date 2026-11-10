@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -39,7 +40,7 @@ func (f *Fetcher) KEV(ctx context.Context, url string) (map[string]KEV, error) {
 	}
 	out := make(map[string]KEV, len(kev.Vulnerabilities))
 	for _, v := range kev.Vulnerabilities {
-		if strings.HasPrefix(v.CVE, "CVE-") {
+		if ValidCVE(v.CVE) {
 			out[v.CVE] = KEV{Added: v.Added, Due: v.Due, Ransomware: v.Ransomware}
 		}
 	}
@@ -48,6 +49,22 @@ func (f *Fetcher) KEV(ctx context.Context, url string) (map[string]KEV, error) {
 		return nil, errors.New("the KEV catalog has no entries")
 	}
 	return out, nil
+}
+
+var cveID = regexp.MustCompile(`^CVE-[0-9]{4}-[0-9]{4,}$`)
+
+// ValidCVE reports whether s is a CVE ID (CVE-YYYY-NNNN, four or more digits).
+func ValidCVE(s string) bool { return cveID.MatchString(s) }
+
+// UsableEUVD returns the entries of an ENISA list that can mark an advisory: a non-blank key and a non-blank EUVD ID.
+func UsableEUVD(m map[string]EUVD) map[string]EUVD {
+	out := make(map[string]EUVD, len(m))
+	for k, e := range m {
+		if strings.TrimSpace(k) != "" && strings.TrimSpace(e.ID) != "" {
+			out[k] = e
+		}
+	}
+	return out
 }
 
 // EUVD reads ENISA's exploited vulnerabilities, keyed by every ID ENISA lists for an entry: its own EUVD ID and its
@@ -68,6 +85,7 @@ func (f *Fetcher) EUVD(ctx context.Context, url string) (map[string]EUVD, error)
 			return nil, fmt.Errorf("page %d: %w", page, err)
 		}
 		for _, it := range res.Items {
+			it.ID = strings.TrimSpace(it.ID)
 			if it.ID == "" {
 				continue
 			}

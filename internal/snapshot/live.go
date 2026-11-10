@@ -53,8 +53,9 @@ func (l *Live) Load(ctx context.Context, cves map[string]bool) LiveData {
 	}, validEUVD)
 	d.addWarning(warn)
 	if data != nil {
-		_ = json.Unmarshal(data, &d.EUVD) // validEUVD checked it
-		d.EUVDFetched = fetched
+		var m map[string]EUVD
+		_ = json.Unmarshal(data, &m) // validEUVD checked it
+		d.EUVD, d.EUVDFetched = UsableEUVD(m), fetched
 	}
 
 	data, fetched, warn = l.cached(ctx, "epss.csv.gz", func() ([]byte, error) {
@@ -80,14 +81,15 @@ func (d *LiveData) addWarning(w string) {
 	}
 }
 
-// validEUVD accepts a cached ENISA list only when it parses and has entries: an empty list means a broken fetch.
+// validEUVD accepts an ENISA list only when it parses and has at least one usable entry (UsableEUVD): an empty list,
+// or one with only blank IDs, means a broken fetch.
 func validEUVD(data []byte) error {
 	var m map[string]EUVD
 	if err := json.Unmarshal(data, &m); err != nil {
 		return err
 	}
-	if len(m) == 0 {
-		return errors.New("no entries")
+	if len(UsableEUVD(m)) == 0 {
+		return errors.New("no usable entries")
 	}
 	return nil
 }

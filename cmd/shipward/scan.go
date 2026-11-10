@@ -168,9 +168,12 @@ func reportHint(f scan.Finding) []string {
 		"Known to be exploited somewhere. That alone is not a case to report: decide whether it is actively exploited",
 		"in your product (CRA Art. 3(42), 14(1)). If it is, the 24-hour early warning may already be due:",
 		"  " + reportCommand(f.ID+" in "+f.Component, f.ID, purl),
-		"  (add --aware TIME if you knew before now)",
+		awareLine,
 	}
 }
+
+// awareLine follows every printed report command: the command records awareness as now otherwise.
+const awareLine = "  (add --aware TIME if you knew before now)"
 
 // reportCommand is a ready shipward report new vulnerability line, every argument quoted for a POSIX shell.
 func reportCommand(title, advisory, component string) string {

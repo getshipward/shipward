@@ -189,7 +189,15 @@ func Run(ctx context.Context, o Options) (*Report, error) {
 		rep.Warnings = append(rep.Warnings, fmt.Sprintf("the vulnerability snapshot expired on %s: no newer one could be loaded",
 			data.Index.Expires.UTC().Format("2006-01-02 15:04 MST")))
 	}
-	kev := Feed{Name: FeedKEV, Used: len(data.Exploited.KEV) > 0} // the catalog is never empty: empty means broken
+	// The catalog is never empty: a list without one CVE ID means a broken snapshot.
+	usableKEV := map[string]snapshot.KEV{}
+	for id, k := range data.Exploited.KEV {
+		if snapshot.ValidCVE(id) {
+			usableKEV[id] = k
+		}
+	}
+	data.Exploited.KEV = usableKEV
+	kev := Feed{Name: FeedKEV, Used: len(usableKEV) > 0}
 	if kev.Used {
 		kev.Date, kev.AgeHours = data.Index.Created, ptr(hours(at.Sub(data.Index.Created)))
 	} else {

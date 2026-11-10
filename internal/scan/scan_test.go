@@ -246,15 +246,17 @@ func sourceNames(list []snapshot.Source) string {
 }
 
 func TestRunEmptyKEV(t *testing.T) {
-	dir, pub := localSnapshotWith(t, time.Now().UTC(), snapshot.Exploited{KEV: map[string]snapshot.KEV{}})
 	bom := &cyclonedx.BOM{Components: &[]cyclonedx.Component{
 		{Type: cyclonedx.ComponentTypeLibrary, Name: "Other", Version: "1.0.0", PackageURL: "pkg:nuget/Other@1.0.0"},
 	}}
-	rep, err := Run(context.Background(), Options{BOM: bom, Snapshot: dir, Keys: []string{pub}, CacheDir: liveCache(t)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if missing := rep.MissingExploitedFeeds(); len(missing) != 1 || missing[0] != FeedKEV || !hasWarning(rep, "no usable CISA KEV list") {
-		t.Errorf("missing %q, warnings %q", missing, rep.Warnings)
+	for _, kev := range []map[string]snapshot.KEV{{}, {"CVE-": {Added: "2026-11-01"}, "": {Added: "2026-11-01"}}} {
+		dir, pub := localSnapshotWith(t, time.Now().UTC(), snapshot.Exploited{KEV: kev})
+		rep, err := Run(context.Background(), Options{BOM: bom, Snapshot: dir, Keys: []string{pub}, CacheDir: liveCache(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if missing := rep.MissingExploitedFeeds(); len(missing) != 1 || missing[0] != FeedKEV || !hasWarning(rep, "no usable CISA KEV list") {
+			t.Errorf("KEV %v: missing %q, warnings %q", kev, missing, rep.Warnings)
+		}
 	}
 }

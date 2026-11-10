@@ -234,6 +234,9 @@ func TestEmptyListsAreRefused(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/kev", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{"vulnerabilities":[]}`) })
 	mux.HandleFunc("/kev-empty", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{}`) })
+	mux.HandleFunc("/kev-noid", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"vulnerabilities":[{"cveID":"CVE-"},{"cveID":""},{"cveID":"CVE-2024-x"}]}`)
+	})
 	mux.HandleFunc("/euvd", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{"total":0,"items":[]}`) })
 	mux.HandleFunc("/euvd-noid", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"total":1,"items":[{"id":"","aliases":"CVE-2024-0001"}]}`)
@@ -241,7 +244,7 @@ func TestEmptyListsAreRefused(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 	f := &Fetcher{HTTP: srv.Client()}
-	for _, u := range []string{"/kev", "/kev-empty"} {
+	for _, u := range []string{"/kev", "/kev-empty", "/kev-noid"} {
 		if _, err := f.KEV(context.Background(), srv.URL+u); err == nil {
 			t.Errorf("KEV %s: accepted", u)
 		}
@@ -259,13 +262,21 @@ func TestEmptyListsAreRefused(t *testing.T) {
 			Now: func() time.Time { return now }, Offline: offline}
 	}
 
-	// An empty cached copy is not used, online or offline.
+	// An empty cached copy, or one with only unusable entries, is not used, online or offline.
 	cache := t.TempDir()
-	os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(`{}`), 0o644)
-	for _, offline := range []bool{false, true} {
-		if d := live(cache, offline).Load(context.Background(), cves); d.EUVD != nil {
-			t.Errorf("offline=%v: empty cached EUVD used: %+v", offline, d)
+	for _, bad := range []string{`{}`, `{"CVE-2024-0001":{"id":""}}`, `{"CVE-2024-0001":{"id":"  "}}`, `{" ":{"id":"EUVD-2024-1"}}`} {
+		os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(bad), 0o644)
+		for _, offline := range []bool{false, true} {
+			if d := live(cache, offline).Load(context.Background(), cves); d.EUVD != nil {
+				t.Errorf("offline=%v: unusable cached EUVD %s used: %+v", offline, bad, d)
+			}
 		}
+	}
+
+	// Unusable entries next to a usable one are dropped.
+	os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(`{"CVE-2024-0001":{"id":"EUVD-2024-1"},"CVE-2024-0002":{"id":""}}`), 0o644)
+	if d := live(cache, true).Load(context.Background(), cves); len(d.EUVD) != 1 || d.EUVD["CVE-2024-0001"].ID != "EUVD-2024-1" {
+		t.Errorf("mixed copy: %+v", d.EUVD)
 	}
 
 	// An older good copy wins over an empty answer, with a warning, and stays in the cache.
@@ -279,5 +290,14 @@ func TestEmptyListsAreRefused(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(filepath.Join(cache, "euvd.json")); string(data) != good {
 		t.Errorf("cache overwritten with %s", data)
+	}
+}
+
+func TestValidCVE(t *testing.T) {
+	for id, want := range map[string]bool{"CVE-2024-0001": true, "CVE-2021-44228": true, "CVE-": false, "CVE-2024-1": false,
+		"CVE-24-0001": false, "GHSA-aaaa": false, " CVE-2024-0001": false, "": false} {
+		if got := ValidCVE(id); got != want {
+			t.Errorf("ValidCVE(%q) = %v", id, got)
+		}
 	}
 }

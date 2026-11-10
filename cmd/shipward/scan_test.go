@@ -234,6 +234,7 @@ func TestTriageSetAffectedHint(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
 	if out := stdout.String(); !strings.Contains(out, "Could not check whether GHSA-dddd is known to be exploited (ENISA EUVD could not be loaded)") ||
+		!strings.Contains(out, awareLine) ||
 		!strings.Contains(out, "shipward report new vulnerability --title 'GHSA-dddd in pkg:nuget/Plain@1.0.0' --advisory GHSA-dddd --component pkg:nuget/Plain@1.0.0") {
 		t.Errorf("stdout = %s", out)
 	}
@@ -244,7 +245,7 @@ func TestTriageSetAffectedHint(t *testing.T) {
 	if code := runTriage(context.Background(), other, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
-	if out := stdout.String(); !strings.Contains(out, "the cached snapshot has no advisory GHSA-zzzz") {
+	if out := stdout.String(); !strings.Contains(out, "the cached snapshot has no advisory GHSA-zzzz") || !strings.Contains(out, awareLine) {
 		t.Errorf("stdout = %s", out)
 	}
 
@@ -254,7 +255,7 @@ func TestTriageSetAffectedHint(t *testing.T) {
 	if code := runTriage(context.Background(), args, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr.String())
 	}
-	if out := stdout.String(); !strings.Contains(out, "Could not check whether CVE-2024-0002 is known to be exploited") {
+	if out := stdout.String(); !strings.Contains(out, "Could not check whether CVE-2024-0002 is known to be exploited") || !strings.Contains(out, awareLine) {
 		t.Errorf("stdout = %s", out)
 	}
 }
