@@ -47,7 +47,8 @@ type data struct {
 	Security     config.Security
 	SupportUntil string // "December 2031"
 	Expires      string // security.txt: 11 months from today
-	SBOM, VEX    string // paths relative to the repository
+	SBOM, VEX    string // paths relative to the repository: the SBOM and the OpenVEX export
+	VEXPath      string // the decisions file (vex.yaml)
 	Note         string
 }
 
@@ -69,6 +70,7 @@ func Write(cfg *config.Config, only []string, force bool, now time.Time, tool st
 		Expires: now.UTC().AddDate(0, 11, 0).Truncate(24 * time.Hour).Format(time.RFC3339),
 		SBOM:    filepath.ToSlash(cfg.SBOM.Output),
 		VEX:     filepath.ToSlash(cfg.VEX.Output),
+		VEXPath: filepath.ToSlash(cfg.VEX.Path),
 		Note: fmt.Sprintf("Draft written by %s on %s. It helps you prepare; it is not legal advice and does not show "+
 			"conformity. Fill in every TODO, check every sentence, then remove this note.", tool, now.Format(time.DateOnly)),
 	}
