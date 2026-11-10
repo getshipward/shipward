@@ -112,8 +112,18 @@ names what Shipward makes for it, where it makes something; check that it is tru
 
 ## 4. Support period
 
-The support period ends {{ if .SupportUntil }}{{ .SupportUntil }}{{ else }}TODO (`product.support_until` in shipward.yaml){{ end }}. TODO: what was considered when setting it (Article 13(8):
-at least five years, unless the product is expected to be in use for less time).
+The support period lasts until {{ if .SupportUntil }}{{ .SupportUntil }}{{ else }}TODO: its end (`product.support_until` in shipward.yaml){{ end }}. It runs from when the product is
+placed on the market: {{ or .Product.PlacedOnMarket "TODO: the date (`product.placed_on_market` in shipward.yaml)" }}.
+
+- TODO: what was considered when setting it (Article 13(8): at least five years, unless the product is expected to
+  be in use for less time; then the support period matches the expected time in use, section 3).
+- TODO: where buyers see the end date (at least the month and year) at the time of purchase, for example the shop or
+  download page, and, where applicable, on the product, its packaging or by digital means (Article 13(19)).
+- TODO: the notification the product displays to users when it has reached the end of its support period. Article
+  13(19) requires it where technically feasible in light of the nature of the product; if it is not feasible, say
+  why.
+- TODO: how each security update stays available for at least ten years after it is issued, or for the rest of the
+  support period if that is longer (Article 13(9)), for example the downloads of each release.
 
 ## 5. Standards and solutions
 

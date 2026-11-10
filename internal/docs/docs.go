@@ -40,12 +40,15 @@ var All = []Doc{
 	{Name: "technical-documentation", Template: "technical-documentation.md.tmpl", File: "technical-documentation.md"},
 }
 
+// namesSupport are the drafts that state the end of the support period.
+var namesSupport = map[string]bool{"security": true, "user-information": true, "technical-documentation": true}
+
 // data is what the templates see.
 type data struct {
 	Product      config.Product
 	Manufacturer config.Manufacturer
 	Security     config.Security
-	SupportUntil string // "December 2031"
+	SupportUntil string // "the end of December 2031"
 	Expires      string // security.txt: 11 months from today
 	SBOM, VEX    string // paths relative to the repository: the SBOM and the OpenVEX export
 	VEXPath      string // the decisions file (vex.yaml)
@@ -79,7 +82,7 @@ func Write(cfg *config.Config, only []string, force bool, now time.Time, tool st
 		if err != nil {
 			return nil, err
 		}
-		d.SupportUntil = t.Format("January 2006")
+		d.SupportUntil = "the end of " + t.Format("January 2006")
 	}
 
 	want := map[string]bool{}
@@ -94,6 +97,17 @@ func Write(cfg *config.Config, only []string, force bool, now time.Time, tool st
 	}
 	if len(unknown) > 0 {
 		return nil, fmt.Errorf("unknown document(s) %s (known: %s)", strings.Join(unknown, ", "), names())
+	}
+
+	// A support period that is over cannot be promised in a new draft that names it. The other drafts, and the other
+	// commands, keep working: the contact and reporting under Article 14 do not end with the support period.
+	if end, ok := cfg.Product.SupportEnd(now.Location()); ok && !now.Before(end) {
+		for name := range namesSupport {
+			if len(want) == 0 || want[name] {
+				return nil, fmt.Errorf("product.support_until %s is in the past: set the end of the support period "+
+					"you will provide (CRA Article 13(8))", cfg.Product.SupportUntil)
+			}
+		}
 	}
 
 	funcs := template.FuncMap{
@@ -165,8 +179,20 @@ func Write(cfg *config.Config, only []string, force bool, now time.Time, tool st
 
 // Warnings lists what in shipward.yaml makes a draft incomplete in a way that is easy to miss. shipward init prints
 // them.
-func Warnings(cfg *config.Config) []string {
+func Warnings(cfg *config.Config, now time.Time) []string {
 	var w []string
+	if end, ok := cfg.Product.SupportEnd(now.Location()); ok {
+		from, what := now, "today ("+now.Format(time.DateOnly)+")"
+		if p, err := time.ParseInLocation(time.DateOnly, cfg.Product.PlacedOnMarket, now.Location()); err == nil {
+			from, what = p, "product.placed_on_market ("+cfg.Product.PlacedOnMarket+")"
+		}
+		if end.Before(from.AddDate(5, 0, 0)) {
+			w = append(w, fmt.Sprintf("the support period (until the end of %s) is less than five years after %s. "+
+				"CRA Article 13(8) asks for at least five years, unless the product is expected to be in use for less "+
+				"time; then say why in the technical documentation, section 4",
+				end.AddDate(0, 0, -1).Format("January 2006"), what))
+		}
+	}
 	if cfg.Security.Contact == "" {
 		w = append(w, "no security contact is set (security.contact or manufacturer.email in shipward.yaml): a newly "+
 			"written security.txt has a TODO in its Contact field, which RFC 9116 requires")

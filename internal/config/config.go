@@ -58,6 +58,9 @@ type Product struct {
 	// DeclarationURL is the exact internet address where the full EU declaration of conformity can be read (Annex II
 	// point 6, Annex VI).
 	DeclarationURL string `yaml:"declaration_url"`
+	// PlacedOnMarket is the date the product (or its newest substantially modified version) was or will be placed on
+	// the market, as YYYY-MM-DD. shipward init warns when the support period is shorter than five years from it.
+	PlacedOnMarket string `yaml:"placed_on_market"`
 	// Markets are the Member States where the product is made available (ISO codes such as SI, DE), or "EU" for all
 	// of them. Reports name them (CRA Art. 14(2)(a), 14(4)(a)).
 	Markets []string `yaml:"markets"`
@@ -233,6 +236,11 @@ func (c *Config) validate() error {
 	if u := c.Product.DeclarationURL; u != "" && !webURL(u) {
 		errs = append(errs, fmt.Errorf("product.declaration_url %q is not a full http:// or https:// address", u))
 	}
+	if c.Product.PlacedOnMarket != "" {
+		if _, err := time.Parse(time.DateOnly, c.Product.PlacedOnMarket); err != nil {
+			errs = append(errs, fmt.Errorf("product.placed_on_market %q is not YYYY-MM-DD", c.Product.PlacedOnMarket))
+		}
+	}
 	if c.Security.Contact != "" && !strings.HasPrefix(c.Security.Contact, "mailto:") && !strings.HasPrefix(c.Security.Contact, "https://") {
 		errs = append(errs, fmt.Errorf("security.contact %q must start with mailto: or https://", c.Security.Contact))
 	}
@@ -253,6 +261,16 @@ func webURL(s string) bool {
 	u, err := url.Parse(s)
 	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Hostname() != "" && u.Opaque == "" &&
 		!strings.ContainsAny(s, " \t\n")
+}
+
+// SupportEnd returns the first moment after the support period: the start of the month after support_until, in loc.
+// The support period runs until the end of the month it names. ok is false when support_until is not set.
+func (p Product) SupportEnd(loc *time.Location) (end time.Time, ok bool) {
+	t, err := time.Parse("2006-01", p.SupportUntil)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return time.Date(t.Year(), t.Month()+1, 1, 0, 0, 0, 0, loc), true
 }
 
 // Resolve turns a path from shipward.yaml into one relative to the working directory.

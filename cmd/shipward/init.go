@@ -25,6 +25,7 @@ product:
   # support_until: "2031-12"     # end of the support period (YYYY-MM)
   # class: default               # default, important-1, important-2 or critical (CRA Annex III, IV)
   # declaration_url: https://example.com/declaration   # where the EU declaration of conformity is published
+  # placed_on_market: "2026-12-01"   # when it is (or was) placed on the market; init warns below five years
   # licence: LicenseRef-example-proprietary
 manufacturer:
   name: %s
@@ -85,12 +86,13 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	if *only != "" {
 		names = strings.Split(*only, ",")
 	}
-	results, err := docs.Write(cfg, names, *force, time.Now(), "shipward "+version)
+	now := time.Now()
+	results, err := docs.Write(cfg, names, *force, now, "shipward "+version)
 	if err != nil {
 		fmt.Fprintf(stderr, "shipward init: %v\n", err)
 		return 1
 	}
-	for _, w := range docs.Warnings(cfg) {
+	for _, w := range docs.Warnings(cfg, now) {
 		fmt.Fprintf(stderr, "shipward init: warning: %s\n", w)
 	}
 	total, width := 0, 36
