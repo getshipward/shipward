@@ -212,6 +212,11 @@ func TestDeclarationByClass(t *testing.T) {
 			}
 		}
 		td := read(t, cfg, "cra/technical-documentation.md")
+		for _, w := range []string{"toys covered by Directive 2009/48/EC", "Regulations (EU) 2017/745 and (EU)\n    2017/746 do not apply"} {
+			if !strings.Contains(td, w) {
+				t.Errorf("checklist lacks the qualifier %q", w)
+			}
+		}
 		if !strings.Contains(td, "2025/2392") || strings.Contains(td, "**Product class**: TODO") == (c.class != "") {
 			t.Errorf("class %q: technical documentation:\n%s", c.class, td)
 		}
@@ -225,6 +230,18 @@ func TestBadClassAndDeclarationURL(t *testing.T) {
 	for _, want := range []string{"product.class", "product.declaration_url"} {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("error %v does not name %s", err, want)
+		}
+	}
+	for _, u := range []string{"https://", "https:///declaration", "http:/example.com", "ftp://example.com/d", "https://exa mple.com/d", "/declaration"} {
+		os.WriteFile(path, []byte("product:\n  name: A\n  declaration_url: \""+u+"\"\nmanufacturer:\n  name: M\n"), 0o644)
+		if _, err := config.Load(path); err == nil || !strings.Contains(err.Error(), "product.declaration_url") {
+			t.Errorf("declaration_url %q accepted (error %v)", u, err)
+		}
+	}
+	for _, u := range []string{"https://example.com/doc", "http://example.com", "https://example.com:8443/a?b=c"} {
+		os.WriteFile(path, []byte("product:\n  name: A\n  declaration_url: \""+u+"\"\nmanufacturer:\n  name: M\n"), 0o644)
+		if _, err := config.Load(path); err != nil {
+			t.Errorf("declaration_url %q refused: %v", u, err)
 		}
 	}
 }

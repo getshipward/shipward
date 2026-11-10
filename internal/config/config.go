@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -229,8 +230,8 @@ func (c *Config) validate() error {
 		errs = append(errs, fmt.Errorf("product.class %q is not one of %s, %s, %s, %s", c.Product.Class,
 			ClassDefault, ClassImportant1, ClassImportant2, ClassCritical))
 	}
-	if u := c.Product.DeclarationURL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
-		errs = append(errs, fmt.Errorf("product.declaration_url %q must start with https:// or http://", u))
+	if u := c.Product.DeclarationURL; u != "" && !webURL(u) {
+		errs = append(errs, fmt.Errorf("product.declaration_url %q is not a full http:// or https:// address", u))
 	}
 	if c.Security.Contact != "" && !strings.HasPrefix(c.Security.Contact, "mailto:") && !strings.HasPrefix(c.Security.Contact, "https://") {
 		errs = append(errs, fmt.Errorf("security.contact %q must start with mailto: or https://", c.Security.Contact))
@@ -245,6 +246,13 @@ func (c *Config) validate() error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// webURL reports whether s is an absolute http or https URL with a host.
+func webURL(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Hostname() != "" && u.Opaque == "" &&
+		!strings.ContainsAny(s, " \t\n")
 }
 
 // Resolve turns a path from shipward.yaml into one relative to the working directory.
