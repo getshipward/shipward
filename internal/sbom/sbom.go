@@ -1,5 +1,8 @@
 // Package sbom makes a CycloneDX 1.6 SBOM of a product: Syft catalogs the source tree, and components.extra.yaml
 // adds what no package manager lists. Everything runs locally; nothing is sent anywhere.
+//
+// It is a source SBOM: the components come from lock files and manifests before the build (CycloneDX lifecycle
+// "pre-build"), not from the built product.
 package sbom
 
 import (
@@ -11,12 +14,17 @@ import (
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/anchore/syft/syft"
+	"github.com/anchore/syft/syft/cataloging/pkgcataloging"
 	"github.com/anchore/syft/syft/format/common/cyclonedxhelpers"
 	"github.com/anchore/syft/syft/source"
 
 	// Syft's RPM cataloger refuses to run without a registered sqlite driver.
 	_ "modernc.org/sqlite"
 )
+
+// Lifecycle is the CycloneDX lifecycle phase of the SBOMs shipward makes: "pre-build", because the components come
+// from lock files and manifests, not from the built product.
+const Lifecycle = cyclonedx.LifecyclePhasePreBuild
 
 // Options describe one SBOM run.
 type Options struct {
@@ -61,7 +69,11 @@ func Generate(ctx context.Context, o Options) (*cyclonedx.BOM, error) {
 	}
 	defer src.Close()
 
-	sbomCfg := syft.DefaultCreateSBOMConfig().WithTool("shipward", o.ToolVersion)
+	// Development dependencies are not part of the delivered product. Syft leaves npm's out only when told so (its
+	// default today), so say it here rather than rely on the default; Composer's packages-dev are never catalogued.
+	pkgCfg := pkgcataloging.DefaultConfig()
+	pkgCfg = pkgCfg.WithJavascriptConfig(pkgCfg.JavaScript.WithIncludeDevDependencies(false))
+	sbomCfg := syft.DefaultCreateSBOMConfig().WithTool("shipward", o.ToolVersion).WithPackagesConfig(pkgCfg)
 	s, err := syft.CreateSBOM(ctx, src, sbomCfg)
 	if err != nil {
 		return nil, fmt.Errorf("catalog %s: %w", o.Path, err)
@@ -71,6 +83,7 @@ func Generate(ctx context.Context, o Options) (*cyclonedx.BOM, error) {
 	if err := setProduct(bom, o); err != nil {
 		return nil, err
 	}
+	bom.Metadata.Lifecycles = &[]cyclonedx.Lifecycle{{Phase: Lifecycle}}
 	addExtra(bom, o.Extra)
 	enrichPackages(bom, s.Artifacts.Packages.Sorted(), o.NuGetCache)
 	markDeclaredLicences(bom)

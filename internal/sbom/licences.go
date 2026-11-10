@@ -23,6 +23,30 @@ type LicenceConfirmation struct {
 	// licence stays the same, so a licence change in a new version needs a new check.
 	Declared  string `yaml:"declared,omitempty"`
 	Concluded string `yaml:"concluded"`
+	// Confirmed false marks a draft that shipward licences --write made: shipward sbom does not use it until a person
+	// checked it and set true (or removed the field). An entry without the field is confirmed.
+	Confirmed *bool `yaml:"confirmed,omitempty"`
+}
+
+// IsConfirmed reports whether a person confirmed the entry.
+func (e LicenceConfirmation) IsConfirmed() bool { return e.Confirmed == nil || *e.Confirmed }
+
+// FindLicence returns the licences.yaml entry for a component: the one for this version, else the one for every
+// version, or nil.
+func FindLicence(entries []LicenceConfirmation, c cyclonedx.Component) *LicenceConfirmation {
+	exact, any := ComponentKeys(c)
+	var loose *LicenceConfirmation
+	for i := range entries {
+		switch entries[i].Component {
+		case exact:
+			return &entries[i]
+		case any:
+			if loose == nil {
+				loose = &entries[i]
+			}
+		}
+	}
+	return loose
 }
 
 // LoadLicences reads licences.yaml. A missing file returns no entries and no error.
@@ -136,7 +160,9 @@ func applyLicences(bom *cyclonedx.BOM, entries []LicenceConfirmation) {
 	}
 	byKey := make(map[string]LicenceConfirmation, len(entries))
 	for _, e := range entries {
-		byKey[e.Component] = e
+		if e.IsConfirmed() { // a draft is not a person's decision yet
+			byKey[e.Component] = e
+		}
 	}
 	for i := range *bom.Components {
 		c := &(*bom.Components)[i]

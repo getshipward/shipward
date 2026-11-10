@@ -49,12 +49,17 @@ func TestApplyLicences(t *testing.T) {
 		{Name: "b", Version: "2.0.0", PackageURL: "pkg:npm/b@2.0.0", Licenses: declared("BSL-1.0")}, // declared changed
 		{Name: "c", Version: "3.0.0", PackageURL: "pkg:npm/c@3.0.0", Licenses: declared("MIT")},
 		{Name: "vendored", Version: "1.0", Licenses: declared("Zlib")},
+		{Name: "d", Version: "1.0.0", PackageURL: "pkg:npm/d@1.0.0", Licenses: declared("MIT")}, // draft only
+		{Name: "e", Version: "1.0.0", PackageURL: "pkg:npm/e@1.0.0", Licenses: declared("MIT")}, // confirmed: true
 	}}
+	no, yes := false, true
 	applyLicences(bom, []LicenceConfirmation{
 		{Component: "pkg:npm/a", Declared: "MIT", Concluded: "MIT"},
 		{Component: "pkg:npm/b", Declared: "MIT", Concluded: "MIT"},
 		{Component: "pkg:npm/c@3.0.0", Concluded: "MIT OR Apache-2.0"},
 		{Component: "vendored@1.0", Concluded: "Zlib"},
+		{Component: "pkg:npm/d", Declared: "MIT", Concluded: "MIT", Confirmed: &no},
+		{Component: "pkg:npm/e", Declared: "MIT", Concluded: "MIT", Confirmed: &yes},
 	})
 	a, b, c, v := (*bom.Components)[0], (*bom.Components)[1], (*bom.Components)[2], (*bom.Components)[3]
 	if !HasConcluded(a) || len(*a.Licenses) != 2 || (*a.Licenses)[0].License.Acknowledgement != cyclonedx.LicenseAcknowledgementDeclared {
@@ -68,6 +73,9 @@ func TestApplyLicences(t *testing.T) {
 	}
 	if !HasConcluded(v) {
 		t.Error("component without purl not confirmed by name@version")
+	}
+	if d, e := (*bom.Components)[4], (*bom.Components)[5]; HasConcluded(d) || !HasConcluded(e) {
+		t.Errorf("draft concluded %v (want false), confirmed: true concluded %v (want true)", HasConcluded(d), HasConcluded(e))
 	}
 }
 
