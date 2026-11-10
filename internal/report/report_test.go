@@ -124,9 +124,12 @@ func TestZone(t *testing.T) {
 		!strings.Contains(err.Error(), `zone "Mars/Olympus"`) {
 		t.Errorf("bad zone: %v", err)
 	}
-	t.Setenv("TZ", "Europe/Budapest")
-	if z := LocalZone(); z != "Europe/Budapest" && z != "" {
-		t.Errorf("LocalZone = %q", z)
+	budapest, _ := time.LoadLocation("Europe/Budapest")
+	if z := pickZone([]string{"", "Local", "/etc/localtime", "Mars/Olympus", "Europe/Budapest"}, budapest); z != "Europe/Budapest" {
+		t.Errorf("pickZone = %q", z)
+	}
+	if z := pickZone([]string{"Europe/Budapest"}, time.FixedZone("", -5*3600)); z != "" {
+		t.Errorf("pickZone with another offset = %q, want empty", z)
 	}
 }
 

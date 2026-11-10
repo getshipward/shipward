@@ -23,8 +23,13 @@ func LocalZone() string {
 			names = append(names, strings.TrimSpace(string(b)))
 		}
 	}
+	return pickZone(names, time.Local)
+}
+
+// pickZone returns the first name that is a time zone with the same offset as local now, or "".
+func pickZone(names []string, local *time.Location) string {
 	now := time.Now()
-	_, want := now.Zone()
+	_, want := now.In(local).Zone()
 	for _, name := range names {
 		if name == "" || name == "Local" || strings.HasPrefix(name, "/") {
 			continue

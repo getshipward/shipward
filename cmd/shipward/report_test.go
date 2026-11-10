@@ -114,3 +114,27 @@ func TestReportRefusesImpossibleInput(t *testing.T) {
 		t.Errorf("final shown overdue:\n%s", out.String())
 	}
 }
+
+func TestReportNewRecordsZone(t *testing.T) {
+	budapest, err := time.LoadLocation("Europe/Budapest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := time.Local
+	t.Cleanup(func() { time.Local = saved })
+	time.Local = budapest
+	t.Setenv("TZ", "Europe/Budapest")
+
+	dir := t.TempDir()
+	cfg := filepath.Join(dir, "shipward.yaml")
+	os.WriteFile(cfg, []byte("product:\n  name: Example Game\nmanufacturer:\n  name: Maker\n"), 0o644)
+	var out, errOut bytes.Buffer
+	if code := reportNew([]string{"incident", "--config", cfg, "--title", "Zoned"}, &out, &errOut, time.Now()); code != 0 {
+		t.Fatalf("new: %d %s", code, errOut.String())
+	}
+	id := strings.Fields(out.String())[1]
+	body, _ := os.ReadFile(filepath.Join(dir, "cra", "reports", id, "report.yaml"))
+	if !strings.Contains(string(body), "\nzone: Europe/Budapest\n") {
+		t.Errorf("report.yaml lacks the zone:\n%s", body)
+	}
+}
