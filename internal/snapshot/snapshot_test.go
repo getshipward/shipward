@@ -229,3 +229,55 @@ func TestLive(t *testing.T) {
 		t.Errorf("offline without cache = %+v", d)
 	}
 }
+
+func TestEmptyListsAreRefused(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/kev", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{"vulnerabilities":[]}`) })
+	mux.HandleFunc("/kev-empty", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{}`) })
+	mux.HandleFunc("/euvd", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{"total":0,"items":[]}`) })
+	mux.HandleFunc("/euvd-noid", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"total":1,"items":[{"id":"","aliases":"CVE-2024-0001"}]}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	f := &Fetcher{HTTP: srv.Client()}
+	for _, u := range []string{"/kev", "/kev-empty"} {
+		if _, err := f.KEV(context.Background(), srv.URL+u); err == nil {
+			t.Errorf("KEV %s: accepted", u)
+		}
+	}
+	for _, u := range []string{"/euvd", "/euvd-noid"} {
+		if _, err := f.EUVD(context.Background(), srv.URL+u); err == nil {
+			t.Errorf("EUVD %s: accepted", u)
+		}
+	}
+
+	now := time.Now()
+	cves := map[string]bool{}
+	live := func(cache string, offline bool) *Live {
+		return &Live{Fetcher: f, CacheDir: cache, EUVDURL: srv.URL + "/euvd", EPSSURL: srv.URL + "/none", MaxAge: 20 * time.Hour,
+			Now: func() time.Time { return now }, Offline: offline}
+	}
+
+	// An empty cached copy is not used, online or offline.
+	cache := t.TempDir()
+	os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(`{}`), 0o644)
+	for _, offline := range []bool{false, true} {
+		if d := live(cache, offline).Load(context.Background(), cves); d.EUVD != nil {
+			t.Errorf("offline=%v: empty cached EUVD used: %+v", offline, d)
+		}
+	}
+
+	// An older good copy wins over an empty answer, with a warning, and stays in the cache.
+	good := `{"CVE-2024-0001":{"id":"EUVD-2024-1"}}`
+	os.WriteFile(filepath.Join(cache, "euvd.json"), []byte(good), 0o644)
+	old := now.Add(-30 * time.Hour)
+	os.Chtimes(filepath.Join(cache, "euvd.json"), old, old)
+	d := live(cache, false).Load(context.Background(), cves)
+	if d.EUVD["CVE-2024-0001"].ID != "EUVD-2024-1" || !d.EUVDFetched.Equal(old) || !strings.Contains(strings.Join(d.Warnings, "\n"), "using an older one") {
+		t.Errorf("older copy: %+v", d)
+	}
+	if data, _ := os.ReadFile(filepath.Join(cache, "euvd.json")); string(data) != good {
+		t.Errorf("cache overwritten with %s", data)
+	}
+}

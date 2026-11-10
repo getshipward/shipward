@@ -192,22 +192,39 @@ func triageSet(ctx context.Context, args []string, stdout, stderr io.Writer) int
 }
 
 // affectedHint looks the advisory up in the cached snapshot (no request) and, when CISA or ENISA list it as
-// exploited, says what that means for reporting (CRA Art. 14).
+// exploited, says what that means for reporting (CRA Art. 14). When the lookup cannot tell (no cached snapshot, no
+// finding for this advisory, or an exploitation list missing), it says so and gives the same guidance.
 func affectedHint(ctx context.Context, w io.Writer, sf scanFlags, s vex.Statement) {
 	rep, _, err := sf.run(ctx, "")
-	if err != nil {
-		fmt.Fprintf(w, "Could not check whether %s is known to be exploited (%v). If it is actively exploited in your product,\n"+
-			"report it (CRA Art. 14): shipward report new vulnerability --title ... --advisory %s --component %s\n", s.ID, err, s.ID, s.Component)
-		return
-	}
-	for _, f := range rep.Findings {
-		if f.Exploited() && vex.Find([]vex.Statement{s}, f.IDs(), f.PURL) != nil {
-			for _, line := range reportHint(f) {
-				fmt.Fprintln(w, line)
+	why := ""
+	switch {
+	case err != nil:
+		why = err.Error()
+	default:
+		found := false
+		for _, f := range rep.Findings {
+			if vex.Find([]vex.Statement{s}, f.IDs(), f.PURL) == nil {
+				continue
 			}
-			return
+			found = true
+			if f.Exploited() {
+				for _, line := range reportHint(f) {
+					fmt.Fprintln(w, line)
+				}
+				return
+			}
+		}
+		if missing := rep.MissingExploitedFeeds(); !found {
+			why = "the cached snapshot has no advisory " + s.ID + " for " + s.Component
+		} else if len(missing) > 0 {
+			why = strings.Join(missing, " and ") + " could not be loaded"
+		} else {
+			return // both lists were checked and neither names it
 		}
 	}
+	fmt.Fprintf(w, "Could not check whether %s is known to be exploited (%s). Decide whether it is actively exploited\n"+
+		"in your product (CRA Art. 3(42), 14(1)). If it is, the 24-hour early warning may already be due:\n  %s\n",
+		s.ID, why, reportCommand(s.ID+" in "+s.Component, s.ID, s.Component))
 }
 
 func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) int {

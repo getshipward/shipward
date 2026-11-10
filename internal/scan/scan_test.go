@@ -41,6 +41,11 @@ func localSnapshot(t *testing.T) (string, string) {
 
 func localSnapshotAt(t *testing.T, created time.Time) (string, string) {
 	t.Helper()
+	return localSnapshotWith(t, created, snapshot.Exploited{KEV: map[string]snapshot.KEV{"CVE-2024-0002": {Added: "2026-11-01"}}})
+}
+
+func localSnapshotWith(t *testing.T, created time.Time, ex snapshot.Exploited) (string, string) {
+	t.Helper()
 	_, key, _ := ed25519.GenerateKey(rand.Reader)
 	dir := t.TempDir()
 	vulns := []osv.Vulnerability{
@@ -59,7 +64,7 @@ func localSnapshotAt(t *testing.T, created time.Time) (string, string) {
 	}
 	files := map[string][]byte{
 		"run/osv-NuGet.json.gz": gz(t, vulns),
-		"run/exploited.json.gz": gz(t, snapshot.Exploited{KEV: map[string]snapshot.KEV{"CVE-2024-0002": {Added: "2026-11-01"}}}),
+		"run/exploited.json.gz": gz(t, ex),
 	}
 	idx := snapshot.Index{Format: snapshot.Format, Created: created, Expires: created.Add(snapshot.Validity)}
 	for p, data := range files {
@@ -238,4 +243,18 @@ func sourceNames(list []snapshot.Source) string {
 		names = append(names, s.Name)
 	}
 	return strings.Join(names, ",")
+}
+
+func TestRunEmptyKEV(t *testing.T) {
+	dir, pub := localSnapshotWith(t, time.Now().UTC(), snapshot.Exploited{KEV: map[string]snapshot.KEV{}})
+	bom := &cyclonedx.BOM{Components: &[]cyclonedx.Component{
+		{Type: cyclonedx.ComponentTypeLibrary, Name: "Other", Version: "1.0.0", PackageURL: "pkg:nuget/Other@1.0.0"},
+	}}
+	rep, err := Run(context.Background(), Options{BOM: bom, Snapshot: dir, Keys: []string{pub}, CacheDir: liveCache(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if missing := rep.MissingExploitedFeeds(); len(missing) != 1 || missing[0] != FeedKEV || !hasWarning(rep, "no usable CISA KEV list") {
+		t.Errorf("missing %q, warnings %q", missing, rep.Warnings)
+	}
 }

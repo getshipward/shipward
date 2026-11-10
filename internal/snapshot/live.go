@@ -50,22 +50,18 @@ func (l *Live) Load(ctx context.Context, cves map[string]bool) LiveData {
 			return nil, err
 		}
 		return json.Marshal(m)
-	})
+	}, validEUVD)
 	d.addWarning(warn)
 	if data != nil {
-		if err := json.Unmarshal(data, &d.EUVD); err != nil {
-			d.EUVD = nil
-			d.addWarning("euvd.json: " + err.Error())
-		} else {
-			d.EUVDFetched = fetched
-		}
+		_ = json.Unmarshal(data, &d.EUVD) // validEUVD checked it
+		d.EUVDFetched = fetched
 	}
 
 	data, fetched, warn = l.cached(ctx, "epss.csv.gz", func() ([]byte, error) {
 		var buf bytes.Buffer
 		err := l.Fetcher.download(ctx, l.EPSSURL, &buf)
 		return buf.Bytes(), err
-	})
+	}, nil)
 	d.addWarning(warn)
 	if data != nil {
 		m, date, err := ParseEPSS(bytes.NewReader(data), func(c string) bool { return cves[c] })
@@ -84,11 +80,32 @@ func (d *LiveData) addWarning(w string) {
 	}
 }
 
+// validEUVD accepts a cached ENISA list only when it parses and has entries: an empty list means a broken fetch.
+func validEUVD(data []byte) error {
+	var m map[string]EUVD
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
+	}
+	if len(m) == 0 {
+		return errors.New("no entries")
+	}
+	return nil
+}
+
 // cached returns a feed file and when it was fetched: the cached copy when it is young enough, else a fresh one. If
-// fetching fails, an older copy is still used, with a warning.
-func (l *Live) cached(ctx context.Context, name string, fetch func() ([]byte, error)) ([]byte, time.Time, string) {
+// fetching fails, an older copy is still used, with a warning. valid (optional) rejects a copy, cached or fresh, that
+// must not be used.
+func (l *Live) cached(ctx context.Context, name string, fetch func() ([]byte, error), valid func([]byte) error) ([]byte, time.Time, string) {
+	if valid == nil {
+		valid = func([]byte) error { return nil }
+	}
 	p := filepath.Join(l.CacheDir, name)
 	old, readErr := os.ReadFile(p)
+	if readErr == nil {
+		if err := valid(old); err != nil {
+			old, readErr = nil, fmt.Errorf("cached copy unusable: %w", err)
+		}
+	}
 	var oldTime time.Time
 	if readErr == nil {
 		if info, err := os.Stat(p); err == nil {
@@ -99,20 +116,26 @@ func (l *Live) cached(ctx context.Context, name string, fetch func() ([]byte, er
 		if readErr == nil {
 			return old, oldTime, ""
 		}
-		return nil, time.Time{}, name + ": not cached (offline)"
+		if errors.Is(readErr, os.ErrNotExist) {
+			return nil, time.Time{}, name + ": not cached (offline)"
+		}
+		return nil, time.Time{}, fmt.Sprintf("%s: %v (offline)", name, readErr)
 	}
 	if readErr == nil && !oldTime.IsZero() && l.Now().Sub(oldTime) < l.MaxAge {
 		return old, oldTime, ""
 	}
 	fresh, err := fetch()
-	if err == nil && len(fresh) > 0 {
+	if err == nil && len(fresh) == 0 {
+		err = errors.New("empty response")
+	}
+	if err == nil {
+		err = valid(fresh)
+	}
+	if err == nil {
 		if os.MkdirAll(l.CacheDir, 0o755) == nil {
 			_ = writeAtomic(p, fresh)
 		}
 		return fresh, l.Now(), ""
-	}
-	if err == nil {
-		err = errors.New("empty response")
 	}
 	if readErr == nil {
 		return old, oldTime, fmt.Sprintf("%s: could not fetch a new copy (%v); using an older one", name, err)

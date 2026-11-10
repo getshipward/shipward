@@ -19,8 +19,8 @@ import (
 	"github.com/getshipward/shipward/internal/snapshot"
 )
 
-// scanProject writes a project with one NuGet component, a signed local snapshot whose only advisory (GHSA-bbbb) is on
-// CISA's list, and fresh EUVD and EPSS copies in the cache, so no test makes a request. It returns the project folder,
+// scanProject writes a project with two NuGet components, a signed local snapshot with an advisory on each (GHSA-bbbb on
+// CISA's list, GHSA-dddd on no list), and fresh EUVD and EPSS copies in the cache, so no test makes a request. It returns the project folder,
 // the snapshot folder and the key.
 func scanProject(t *testing.T) (dir, snap, key string) {
 	t.Helper()
@@ -43,9 +43,10 @@ func scanProject(t *testing.T) (dir, snap, key string) {
 	writeFiles(t, dir, map[string]string{
 		"shipward.yaml": "product:\n  name: App\nmanufacturer:\n  name: Maker\n",
 		"sbom/sbom.cdx.json": `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[
-			{"type":"library","name":"Other","version":"1.0.0","purl":"pkg:nuget/Other@1.0.0"}]}`,
+			{"type":"library","name":"Other","version":"1.0.0","purl":"pkg:nuget/Other@1.0.0"},
+			{"type":"library","name":"Plain","version":"1.0.0","purl":"pkg:nuget/Plain@1.0.0"}]}`,
 	})
-	writeFiles(t, live, map[string]string{"euvd.json": `{}`, "epss.csv.gz": string(gzipped([]byte("cve,epss,percentile\n")))})
+	writeFiles(t, live, map[string]string{"euvd.json": `{"CVE-1999-0001":{"id":"EUVD-1999-1"}}`, "epss.csv.gz": string(gzipped([]byte("cve,epss,percentile\n")))})
 
 	_, priv, _ := ed25519.GenerateKey(rand.Reader)
 	snap = t.TempDir()
@@ -62,7 +63,9 @@ func scanProject(t *testing.T) (dir, snap, key string) {
 	}{
 		{"osv", "NuGet", "run/osv-NuGet.json.gz", toGzipJSON([]osv.Vulnerability{{ID: "GHSA-bbbb", Aliases: []string{"CVE-2024-0002"},
 			Affected: []osv.Affected{{Package: osv.Package{Ecosystem: "NuGet", Name: "Other"},
-				Ranges: []osv.Range{{Type: "ECOSYSTEM", Events: []osv.Event{{Introduced: "0"}, {Fixed: "9.0.0"}}}}}}}})},
+				Ranges: []osv.Range{{Type: "ECOSYSTEM", Events: []osv.Event{{Introduced: "0"}, {Fixed: "9.0.0"}}}}}}},
+			{ID: "GHSA-dddd", Affected: []osv.Affected{{Package: osv.Package{Ecosystem: "NuGet", Name: "Plain"},
+				Ranges: []osv.Range{{Type: "ECOSYSTEM", Events: []osv.Event{{Introduced: "0"}, {Fixed: "2.0.0"}}}}}}}})},
 		{"exploited", "", "run/exploited.json.gz", toGzipJSON(snapshot.Exploited{KEV: map[string]snapshot.KEV{"CVE-2024-0002": {Added: "2026-11-01"}}})},
 	}
 	now := time.Now().UTC()
@@ -212,6 +215,39 @@ func TestTriageSetAffectedHint(t *testing.T) {
 		t.Errorf("stdout = %s", out)
 	}
 
+	// Both lists checked, neither names GHSA-dddd: nothing more to say.
+	stdout.Reset()
+	plain := []string{"set", "GHSA-dddd", "pkg:nuget/Plain@1.0.0", "--status", "affected", "--action", "Update to 2.0.0.",
+		"--by", "alex", "--config", cfg, "--snapshot", snap, "--trust-key", key}
+	if code := runTriage(context.Background(), plain, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	if out := stdout.String(); strings.Contains(out, "exploited") {
+		t.Errorf("not exploited, both lists loaded: stdout = %s", out)
+	}
+
+	// ENISA's list missing: the lookup is not conclusive, and says so.
+	ucd, _ := os.UserCacheDir()
+	os.Remove(filepath.Join(ucd, "shipward", "live", "euvd.json"))
+	stdout.Reset()
+	if code := runTriage(context.Background(), plain, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	if out := stdout.String(); !strings.Contains(out, "Could not check whether GHSA-dddd is known to be exploited (ENISA EUVD could not be loaded)") ||
+		!strings.Contains(out, "shipward report new vulnerability --title 'GHSA-dddd in pkg:nuget/Plain@1.0.0' --advisory GHSA-dddd --component pkg:nuget/Plain@1.0.0") {
+		t.Errorf("stdout = %s", out)
+	}
+
+	// An advisory the cached snapshot does not have for this component.
+	stdout.Reset()
+	other := append([]string{"set", "GHSA-zzzz", "pkg:nuget/Plain@1.0.0"}, plain[3:]...)
+	if code := runTriage(context.Background(), other, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	if out := stdout.String(); !strings.Contains(out, "the cached snapshot has no advisory GHSA-zzzz") {
+		t.Errorf("stdout = %s", out)
+	}
+
 	// Without a cached snapshot it cannot tell, and says so.
 	stdout.Reset()
 	args[len(args)-3] = t.TempDir()
@@ -220,5 +256,21 @@ func TestTriageSetAffectedHint(t *testing.T) {
 	}
 	if out := stdout.String(); !strings.Contains(out, "Could not check whether CVE-2024-0002 is known to be exploited") {
 		t.Errorf("stdout = %s", out)
+	}
+}
+
+func TestShellQuote(t *testing.T) {
+	for in, want := range map[string]string{
+		"GHSA-bbbb":                "GHSA-bbbb",
+		"pkg:npm/%40scope/a@1.0.0": "pkg:npm/%40scope/a@1.0.0",
+		"GHSA-x in a@1":            "'GHSA-x in a@1'",
+		"it's":                     `'it'\''s'`,
+		"pkg:npm/a@1;rm -rf ~":     "'pkg:npm/a@1;rm -rf ~'",
+		"$(id)":                    "'$(id)'",
+		"":                         "''",
+	} {
+		if got := shellQuote(in); got != want {
+			t.Errorf("shellQuote(%q) = %s, want %s", in, got, want)
+		}
 	}
 }

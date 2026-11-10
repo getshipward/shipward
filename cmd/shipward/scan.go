@@ -167,14 +167,25 @@ func reportHint(f scan.Finding) []string {
 	return []string{
 		"Known to be exploited somewhere. That alone is not a case to report: decide whether it is actively exploited",
 		"in your product (CRA Art. 3(42), 14(1)). If it is, the 24-hour early warning may already be due:",
-		fmt.Sprintf("  shipward report new vulnerability --title %s --advisory %s --component %s",
-			shellQuote(f.ID+" in "+f.Component), f.ID, purl),
+		"  " + reportCommand(f.ID+" in "+f.Component, f.ID, purl),
 		"  (add --aware TIME if you knew before now)",
 	}
 }
 
-// shellQuote quotes s for a POSIX shell.
-func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+// reportCommand is a ready shipward report new vulnerability line, every argument quoted for a POSIX shell.
+func reportCommand(title, advisory, component string) string {
+	return "shipward report new vulnerability --title " + shellQuote(title) + " --advisory " + shellQuote(advisory) +
+		" --component " + shellQuote(component)
+}
+
+// shellQuote quotes s for a POSIX shell. Plain words (letters, digits and @%+=:,./_-) stay as they are, so the usual
+// IDs and purls read normally.
+func shellQuote(s string) string {
+	if s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@%+=:,./_-") == "" {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
 
 // feedText says where the exploitation data came from and how old it is.
 func feedText(rep *scan.Report) string {

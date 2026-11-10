@@ -39,7 +39,13 @@ func (f *Fetcher) KEV(ctx context.Context, url string) (map[string]KEV, error) {
 	}
 	out := make(map[string]KEV, len(kev.Vulnerabilities))
 	for _, v := range kev.Vulnerabilities {
-		out[v.CVE] = KEV{Added: v.Added, Due: v.Due, Ransomware: v.Ransomware}
+		if strings.HasPrefix(v.CVE, "CVE-") {
+			out[v.CVE] = KEV{Added: v.Added, Due: v.Due, Ransomware: v.Ransomware}
+		}
+	}
+	// The catalog has well over a thousand entries: an empty answer is a broken one, not an empty list.
+	if len(out) == 0 {
+		return nil, errors.New("the KEV catalog has no entries")
 	}
 	return out, nil
 }
@@ -62,14 +68,19 @@ func (f *Fetcher) EUVD(ctx context.Context, url string) (map[string]EUVD, error)
 			return nil, fmt.Errorf("page %d: %w", page, err)
 		}
 		for _, it := range res.Items {
+			if it.ID == "" {
+				continue
+			}
 			e := EUVD{ID: it.ID, ExploitedSince: euvdDate(it.ExploitedSince)}
 			for _, id := range append([]string{it.ID}, strings.Fields(it.Aliases)...) {
-				if id != "" {
-					out[id] = e
-				}
+				out[id] = e
 			}
 		}
 		if len(res.Items) < euvdPageSize || (page+1)*euvdPageSize >= res.Total {
+			// ENISA lists hundreds of exploited vulnerabilities: an empty answer is a broken one, not an empty list.
+			if len(out) == 0 {
+				return nil, errors.New("ENISA's list of exploited vulnerabilities has no entries")
+			}
 			return out, nil
 		}
 		if page >= 1000 {

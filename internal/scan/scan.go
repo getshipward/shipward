@@ -189,11 +189,11 @@ func Run(ctx context.Context, o Options) (*Report, error) {
 		rep.Warnings = append(rep.Warnings, fmt.Sprintf("the vulnerability snapshot expired on %s: no newer one could be loaded",
 			data.Index.Expires.UTC().Format("2006-01-02 15:04 MST")))
 	}
-	kev := Feed{Name: FeedKEV, Used: data.Exploited.KEV != nil}
+	kev := Feed{Name: FeedKEV, Used: len(data.Exploited.KEV) > 0} // the catalog is never empty: empty means broken
 	if kev.Used {
 		kev.Date, kev.AgeHours = data.Index.Created, ptr(hours(at.Sub(data.Index.Created)))
 	} else {
-		rep.Warnings = append(rep.Warnings, "the snapshot has no CISA KEV list: no advisory is marked as exploited by CISA")
+		rep.Warnings = append(rep.Warnings, "the snapshot has no usable CISA KEV list: no advisory is marked as exploited by CISA")
 	}
 	rep.Feeds = append(rep.Feeds, kev)
 	type match struct {
