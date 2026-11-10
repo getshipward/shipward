@@ -17,7 +17,7 @@ var version = "dev"
 const usage = `usage: shipward <command> [flags]
 
 commands:
-  init        write shipward.yaml and drafts of the CRA documents (SECURITY.md, security.txt, Annex II, V, VII)
+  init        write shipward.yaml and drafts of the CRA documents (SECURITY.md, security.txt, Annex II, V, VI, VII)
   sbom        make a CycloneDX SBOM of the product (reads shipward.yaml)
   check sbom  list fields the SBOM misses (BSI TR-03183-2 v2.1.0)
   scan        match the SBOM against public vulnerability data, on this machine

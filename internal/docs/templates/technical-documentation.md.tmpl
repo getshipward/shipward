@@ -10,6 +10,26 @@ ten years after the product is placed on the market, or for the support period i
 - **Intended purpose**: {{ or .Product.Purpose "TODO: the intended purpose (`product.purpose` in shipward.yaml)." }}
 - **Versions**: TODO: the software versions that affect conformity with the essential requirements.
 - **Information for users**: [user-information.md](user-information.md).
+- **Product class**: {{ template "class" .Product.Class }}
+
+  Check the product against the categories of Annex III and Annex IV. The technical descriptions of the categories
+  are in Commission Implementing Regulation (EU) 2025/2392
+  (<https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32025R2392>). A product is in an Annex III category
+  when it has the core functionality of that category (Article 7(1)).
+
+  - Annex III, class I (`important-1`): identity management and privileged access management software and
+    hardware; standalone and embedded browsers; password managers; software that searches for, removes or
+    quarantines malicious software; VPN products; network management systems; SIEM systems; boot managers; public
+    key infrastructure and digital certificate issuance software; physical and virtual network interfaces; operating
+    systems; routers, modems for the internet, and switches; microprocessors, microcontrollers, ASICs and FPGAs with
+    security-related functionalities; smart home general purpose virtual assistants; smart home products with
+    security functionalities; internet-connected toys with social interactive or location tracking features;
+    personal wearables with a health monitoring purpose, or for children.
+  - Annex III, class II (`important-2`): hypervisors and container runtime systems; firewalls, intrusion detection
+    and prevention systems; tamper-resistant microprocessors and microcontrollers.
+  - Annex IV (`critical`): hardware devices with security boxes; smart meter gateways and other devices for advanced
+    security purposes; smartcards or similar devices, including secure elements.
+  - None of these (`default`).
 
 ## 2. Design, development, production and vulnerability handling
 
@@ -69,3 +89,11 @@ TODO: the reports of tests that check the product and its vulnerability handling
 ## 8. Software bill of materials
 
 `{{ .SBOM }}`. Give it to a market surveillance authority when it asks for it with reasons.
+{{- define "class" }}
+{{- if eq . "default" }}not listed in Annex III or IV (`product.class: default`).
+{{- else if eq . "important-1" }}important product, Annex III, class I (`product.class: important-1`).
+{{- else if eq . "important-2" }}important product, Annex III, class II (`product.class: important-2`).
+{{- else if eq . "critical" }}critical product, Annex IV (`product.class: critical`).
+{{- else }}TODO: the class, after the checklist below (`product.class` in shipward.yaml).
+{{- end }}
+{{- end }}

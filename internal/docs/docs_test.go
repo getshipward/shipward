@@ -178,3 +178,81 @@ func TestLanguageNames(t *testing.T) {
 		}
 	}
 }
+
+func TestDeclarationByClass(t *testing.T) {
+	base := "product:\n  name: App\n  markets: [SI, DE]\n%smanufacturer:\n  name: Maker\n  email: s@example.com\n"
+	for _, c := range []struct {
+		class        string
+		want, unwant []string
+	}{
+		{"", []string{"Conformity assessment: TODO", "set\n   `product.class`", "**Notified body**: TODO"}, []string{"module A"}},
+		{"default", []string{"**Notified body**: None. Conformity assessment: internal control (module A"}, []string{"Notified body**: TODO"}},
+		{"important-1", []string{"class I (Annex III)", "applied in full", "Article 32(2)", "Article 32(5)"}, []string{"Notified body**: None"}},
+		{"important-2", []string{"class II (Annex III)", "Internal control is not allowed", "Article 32(3)", "Article 32(5)"}, []string{"Notified body**: None"}},
+		{"critical", []string{"critical product (Annex IV)", "Article 32(4)"}, []string{"Notified body**: None", "Article 32(5)"}},
+	} {
+		class := ""
+		if c.class != "" {
+			class = "  class: " + c.class + "\n"
+		}
+		cfg := load(t, strings.Replace(base, "%s", class, 1))
+		if _, err := Write(cfg, []string{"declaration", "technical-documentation"}, false, time.Now(), "shipward test"); err != nil {
+			t.Fatal(err)
+		}
+		doc := read(t, cfg, "cra/declaration-of-conformity.md")
+		for _, w := range append(c.want, "has been demonstrated", "OJ L, 2024/2847, 20.11.2024", "Article 28(2)", "(SI, DE)",
+			"sole responsibility of the manufacturer", "\n8. **Additional") {
+			if !strings.Contains(doc, w) {
+				t.Errorf("class %q: declaration lacks %q:\n%s", c.class, w, doc)
+			}
+		}
+		for _, w := range c.unwant {
+			if strings.Contains(doc, w) {
+				t.Errorf("class %q: declaration has %q", c.class, w)
+			}
+		}
+		td := read(t, cfg, "cra/technical-documentation.md")
+		if !strings.Contains(td, "2025/2392") || strings.Contains(td, "**Product class**: TODO") == (c.class != "") {
+			t.Errorf("class %q: technical documentation:\n%s", c.class, td)
+		}
+	}
+}
+
+func TestBadClassAndDeclarationURL(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "shipward.yaml")
+	os.WriteFile(path, []byte("product:\n  name: A\n  class: important\n  declaration_url: example.com\nmanufacturer:\n  name: M\n"), 0o644)
+	_, err := config.Load(path)
+	for _, want := range []string{"product.class", "product.declaration_url"} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("error %v does not name %s", err, want)
+		}
+	}
+}
+
+func TestSimplifiedDeclaration(t *testing.T) {
+	cfg := load(t, "product:\n  name: App\n  declaration_url: https://example.com/doc\nmanufacturer:\n  name: Maker\n")
+	if _, err := Write(cfg, []string{"simplified-declaration", "user-information"}, false, time.Now(), "shipward test"); err != nil {
+		t.Fatal(err)
+	}
+	doc := read(t, cfg, "cra/simplified-declaration-of-conformity.md")
+	for _, w := range []string{"Hereby, Maker declares that the product with digital elements type App",
+		"is in compliance with Regulation (EU) 2024/2847 (1).",
+		"The full text of the EU declaration of conformity is available at the following internet address: https://example.com/doc",
+		"ELI: http://data.europa.eu/eli/reg/2024/2847/oj"} {
+		if !strings.Contains(doc, w) {
+			t.Errorf("simplified declaration lacks %q:\n%s", w, doc)
+		}
+	}
+	if info := read(t, cfg, "cra/user-information.md"); !strings.Contains(info, "The EU declaration of conformity: https://example.com/doc") {
+		t.Errorf("user information does not link the declaration:\n%s", info)
+	}
+
+	cfg = load(t, "product:\n  name: App\nmanufacturer:\n  name: Maker\n")
+	results, err := Write(cfg, []string{"simplified-declaration"}, false, time.Now(), "shipward test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].TODOs != 2 || !strings.Contains(read(t, cfg, "cra/simplified-declaration-of-conformity.md"), "TODO: the exact address") {
+		t.Errorf("TODOs = %d", results[0].TODOs)
+	}
+}

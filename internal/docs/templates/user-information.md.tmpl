@@ -38,7 +38,7 @@ cybersecurity risk. Write "None known" only if that is true.
 
 ## 6. EU declaration of conformity
 
-TODO: the address where the EU declaration of conformity can be read (the draft is declaration-of-conformity.md).
+{{ if .Product.DeclarationURL }}The EU declaration of conformity: {{ .Product.DeclarationURL }}{{ else }}TODO: the address where the EU declaration of conformity can be read (`product.declaration_url` in shipward.yaml; the draft is declaration-of-conformity.md).{{ end }}
 
 ## 7. Security support
 
