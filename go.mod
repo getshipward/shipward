@@ -9,8 +9,7 @@ require (
 	github.com/github/go-spdx/v2 v2.8.0
 	github.com/google/osv-scalibr v0.5.3
 	github.com/minio/minio-go/v7 v7.4.1
-	go.yaml.in/yaml/v3 v3.0.5
-	go.yaml.in/yaml/v4 v4.0.0
+	go.yaml.in/yaml/v3 v3.0.6
 	modernc.org/sqlite v1.62.0
 )
 
