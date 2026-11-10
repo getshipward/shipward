@@ -66,7 +66,7 @@ security:
 		}
 	}
 	sec := read(t, cfg, "SECURITY.md")
-	for _, want := range []string{"made by Example s.p.\n", "Reports in English or Slovenian", "until December 2031", "sec@example.com"} {
+	for _, want := range []string{"made by Example s.p.\n", "Reports in English or Slovenian", "until the end of December 2031.", "sec@example.com"} {
 		if !strings.Contains(sec, want) {
 			t.Errorf("SECURITY.md lacks %q", want)
 		}
@@ -141,7 +141,7 @@ func TestSecurityTxtWithoutContact(t *testing.T) {
 	if !strings.Contains(txt, "Expires: 2027-03-03T00:00:00Z") {
 		t.Errorf("Expires:\n%s", txt)
 	}
-	if w := Warnings(cfg); len(w) != 1 || !strings.Contains(w[0], "RFC 9116") {
+	if w := Warnings(cfg, time.Now()); len(w) != 1 || !strings.Contains(w[0], "RFC 9116") {
 		t.Errorf("Warnings = %q", w)
 	}
 }
@@ -166,7 +166,7 @@ security:
 			t.Errorf("SECURITY.md lacks %q:\n%s", want, sec)
 		}
 	}
-	if w := Warnings(cfg); len(w) != 0 {
+	if w := Warnings(cfg, time.Now()); len(w) != 0 {
 		t.Errorf("Warnings = %q", w)
 	}
 }
@@ -321,5 +321,80 @@ func TestRiskAssessment(t *testing.T) {
 	}
 	if rows != 13+8 {
 		t.Errorf("%d requirement rows, want 21", rows)
+	}
+}
+
+func TestSupportPeriod(t *testing.T) {
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	yaml := func(extra string) string {
+		return "product:\n  name: App\n" + extra + "manufacturer:\n  name: Maker\n  email: s@example.com\n"
+	}
+
+	// A month that is over is refused; the current month is still fine.
+	cfg := load(t, yaml("  support_until: \"2026-10\"\n"))
+	if _, err := Write(cfg, nil, false, now, "shipward test"); err == nil || !strings.Contains(err.Error(), "in the past") {
+		t.Errorf("past support_until: error %v", err)
+	}
+	// security.txt does not name the support period: it can still be written after the end.
+	if _, err := Write(cfg, []string{"security.txt"}, false, now, "shipward test"); err != nil {
+		t.Errorf("security.txt refused after the support period: %v", err)
+	}
+	if _, err := Write(cfg, []string{"security.txt", "user-information"}, true, now, "shipward test"); err == nil {
+		t.Error("user information written with a past support period")
+	}
+	cfg = load(t, yaml("  support_until: \"2026-11\"\n"))
+	if _, err := Write(cfg, []string{"security"}, false, now, "shipward test"); err != nil {
+		t.Errorf("current month refused: %v", err)
+	}
+
+	for _, c := range []struct {
+		extra string
+		warn  string // "" for no warning
+	}{
+		{"  support_until: \"2031-10\"\n", "after today (2026-11-10)"},
+		{"  support_until: \"2031-11\"\n", ""}, // until 30 November 2031: five years and some days
+		{"  support_until: \"2032-11\"\n  placed_on_market: \"2027-12-11\"\n", "until the end of November 2032) is less than five years after product.placed_on_market (2027-12-11)"},
+		{"  support_until: \"2032-11\"\n  placed_on_market: \"2027-12-01\"\n", ""}, // exactly five years
+		{"  support_until: \"2032-12\"\n  placed_on_market: \"2027-12-11\"\n", ""},
+		{"", ""},
+	} {
+		w := Warnings(load(t, yaml(c.extra)), now)
+		got := strings.Join(w, "\n")
+		if c.warn == "" && got != "" || c.warn != "" && (!strings.Contains(got, c.warn) || !strings.Contains(got, "Article 13(8)")) {
+			t.Errorf("%q: warnings %q, want %q", c.extra, got, c.warn)
+		}
+	}
+
+	cfg = load(t, yaml("  support_until: \"2032-12\"\n  placed_on_market: \"2027-12-11\"\n"))
+	if _, err := Write(cfg, []string{"technical-documentation", "user-information"}, false, now, "shipward test"); err != nil {
+		t.Fatal(err)
+	}
+	td := read(t, cfg, "cra/technical-documentation.md")
+	for _, want := range []string{"lasts until the end of December 2032.", "placed on the market: 2027-12-11.",
+		"Article 13(19)", "the notification the product displays to users when it has reached the end of its support period",
+		"where technically feasible", "Article 13(9)"} {
+		if !strings.Contains(td, want) {
+			t.Errorf("technical documentation lacks %q", want)
+		}
+	}
+	info := read(t, cfg, "cra/user-information.md")
+	for _, want := range []string{"free of charge until the end of December 2032.", "Article 13(19)",
+		"users choose their preferred means of communication"} {
+		if !strings.Contains(info, want) {
+			t.Errorf("user information lacks %q", want)
+		}
+	}
+}
+
+// Every draft that prints the support period is refused when the period is over, so it must be in namesSupport.
+func TestNamesSupportCoversTemplates(t *testing.T) {
+	for _, d := range All {
+		b, err := templates.ReadFile("templates/" + d.Template)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if uses := strings.Contains(string(b), ".SupportUntil"); uses != namesSupport[d.Name] {
+			t.Errorf("%s: prints the support period %v, in namesSupport %v", d.Name, uses, namesSupport[d.Name])
+		}
 	}
 }

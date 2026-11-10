@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func write(t *testing.T, content string) string {
@@ -74,5 +75,19 @@ func TestSecurityResponseTimesMustBePositive(t *testing.T) {
 	_, err := Load(write(t, "product:\n  name: A\nmanufacturer:\n  name: M\nsecurity:\n  disclosure_days: -1\n"))
 	if err == nil || !strings.Contains(err.Error(), "security.disclosure_days") {
 		t.Errorf("error = %v", err)
+	}
+}
+
+func TestPlacedOnMarketAndSupportEnd(t *testing.T) {
+	if _, err := Load(write(t, "product:\n  name: A\n  placed_on_market: 2027-12\nmanufacturer:\n  name: M\n")); err == nil ||
+		!strings.Contains(err.Error(), "product.placed_on_market") {
+		t.Errorf("error = %v", err)
+	}
+	end, ok := Product{SupportUntil: "2031-12"}.SupportEnd(time.UTC)
+	if !ok || !end.Equal(time.Date(2032, 1, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("SupportEnd = %v %v", end, ok)
+	}
+	if _, ok := (Product{}).SupportEnd(time.UTC); ok {
+		t.Error("SupportEnd without support_until")
 	}
 }
