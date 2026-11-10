@@ -46,6 +46,10 @@ func TestNotice(t *testing.T) {
 		t.Errorf("overwrote without force: %v, %v", wrote, err)
 	}
 
+	if _, err := Notice("x", &Case{Type: Incident, Title: "y", Aware: aware}, cfg, aware, "t"); err == nil ||
+		!strings.Contains(err.Error(), "versions in report.yaml") {
+		t.Errorf("notice without versions: %v", err)
+	}
 	c.UserMeasures, cfg.Manufacturer.URL = nil, ""
 	if _, err := Notice("x", c, cfg, aware, "t"); err == nil || !strings.Contains(err.Error(), "user_measures") ||
 		!strings.Contains(err.Error(), "manufacturer.url") {

@@ -18,6 +18,9 @@ const NoticeFile = "users.csaf.json"
 // structured, machine-readable format"). The remediation is what users can do (user_measures); the document is a
 // draft for a person to check before it goes out.
 func Notice(id string, c *Case, cfg *config.Config, now time.Time, tool string) ([]byte, error) {
+	if len(c.Versions) == 0 {
+		return nil, errors.New("CSAF needs the affected versions (versions in report.yaml)")
+	}
 	a := advisory.Advisory{ID: id, Title: "Security notice: " + c.Title, Product: cfg.Product.Name,
 		Manufacturer: cfg.Manufacturer.Name, Namespace: cfg.Manufacturer.URL, Affected: c.Versions,
 		Description: c.Summary, Impact: c.Impact, Severity: c.Severity, Date: now, Tool: tool, Unfixed: true,
