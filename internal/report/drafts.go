@@ -37,6 +37,8 @@ type draftData struct {
 	Contact      string
 	IsIncident   bool
 	Due          struct{ EarlyWarning, Notification, Final time.Time }
+	FinalLatest  bool   // Due.Final is the latest possible time (incident, notification not recorded)
+	FinalHint    string // an extra line about the final report's deadline, or empty
 	Note         string
 }
 
@@ -57,7 +59,7 @@ func WriteDrafts(dir, id string, c *Case, cfg *config.Config, force bool, loc *t
 		case Notification:
 			d.Due.Notification = dl.Due
 		case Final:
-			d.Due.Final = dl.Due
+			d.Due.Final, d.FinalLatest, d.FinalHint = dl.Due, dl.Latest, dl.Hint
 		}
 	}
 	funcs := template.FuncMap{
