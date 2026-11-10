@@ -38,6 +38,7 @@ your repository.
 | `shipward scan` | Known vulnerabilities, matched on your machine against a daily, signed snapshot of public advisories | [Vulnerability scan](https://shipward.dev/docs/scan/) |
 | `shipward triage` | Your decision on each advisory (VEX), in `vex.yaml`, exported as OpenVEX | [Decisions (VEX)](https://shipward.dev/docs/decisions/) |
 | `shipward init` | Drafts of your security policy, `security.txt`, user information, declaration of conformity and technical documentation | [CRA documents](https://shipward.dev/docs/documents/) |
+| `shipward advisory` | A draft advisory about a fixed vulnerability (CRA Annex I Part II(4)), in Markdown and CSAF 2.0 | [Advisories](https://shipward.dev/docs/advisories/) |
 | `shipward report` | Drafts of the 24-hour, 72-hour and final reports (CRA Article 14), with their deadlines | [Reports](https://shipward.dev/docs/reports/) |
 | `uses: getshipward/shipward` | `sbom`, `check sbom`, `scan` and `triage export` on every push, with the results in the job summary (not `init`, `licences` or `report`) | [GitHub Action](https://shipward.dev/docs/github-action/) |
 

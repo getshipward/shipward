@@ -22,6 +22,7 @@ commands:
   check sbom  list fields the SBOM misses (BSI TR-03183-2 v2.1.0)
   scan        match the SBOM against public vulnerability data, on this machine
   triage      record decisions about advisories (VEX) and export them as OpenVEX
+  advisory    a draft advisory about a fixed vulnerability (CRA Annex I Part II(4)), Markdown and CSAF
   report      reports of exploited vulnerabilities and severe incidents (CRA Art. 14): drafts and deadlines
   licences    list components without a confirmed licence (--write drafts licences.yaml)
   version     print the version
@@ -52,6 +53,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return runTriage(ctx, args[1:], stdout, stderr)
 	case "report":
 		return runReport(args[1:], stdout, stderr)
+	case "advisory":
+		return runAdvisory(ctx, args[1:], stdout, stderr)
 	case "licences":
 		return runLicences(args[1:], stdout, stderr)
 	case "version":

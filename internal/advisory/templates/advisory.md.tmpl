@@ -1,0 +1,39 @@
+<!-- {{ .Note }}
+Publish it once the security update is available (CRA Annex I Part II(4)), where your users will see it, and send it
+with the update (Part II(8)). Only in duly justified cases, where you consider the security risks of publishing to
+outweigh the benefits, may you wait, and only until users could install the update. Until it is published, it may
+describe an unfixed flaw: keep it out of public repositories. -->
+# Security advisory: {{ if .Title }}{{ .Title }}{{ else }}{{ .ID }} in {{ .Product }}{{ end }}
+
+| | |
+|---|---|
+| Identifiers | {{ .ID }}{{ with .Aliases }}, {{ join . ", " }}{{ end }} |
+| Product | {{ .Product }}{{ with .Manufacturer }}, by {{ . }}{{ end }} |
+| Affected versions | {{ if .Affected }}{{ join .Affected ", " }}{{ else }}TODO: the versions that have the flaw{{ end }} |
+| Fixed in | {{ or .FixedIn "TODO: the version with the security update" }} |
+{{- with .Component }}
+| Affected component | `{{ . }}` |
+{{- end }}
+| Severity | {{ or .Severity "TODO: for example high, with a CVSS score if you have one" }}{{ with .CVSS }} (`{{ . }}`){{ end }} |
+| Published | TODO: the date you publish this |
+
+## What the vulnerability is
+
+{{ or .Description "TODO: a description of the vulnerability, in plain words." }}
+
+## Impact
+
+{{ or .Impact "TODO: what an attacker can do with it, and who is affected." }}
+
+## What you should do
+
+{{ or .RemediationText "TODO: clear steps users can follow, for example: update to version X." }}
+{{- with .References }}
+
+## More information
+{{ range . }}
+- {{ . }}
+{{- end }}
+{{- end }}
+
+Questions: {{ or .Contact "TODO: a contact" }}.
