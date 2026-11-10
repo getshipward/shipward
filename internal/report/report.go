@@ -23,16 +23,21 @@ const (
 	Incident      = "incident"      // Art. 14(3), (4)
 )
 
-// Stages, in order.
+// Stages.
 const (
 	EarlyWarning = "early-warning"
 	Notification = "notification"
 	Final        = "final"
-	Users        = "users"
+	Users        = "users"        // the notice to users (Art. 14(8)): in parallel with the reports, from awareness
+	Intermediate = "intermediate" // only when the CSIRT asks for it (Art. 14(6))
 )
 
-// Stages lists the stages a case goes through.
-var Stages = []string{EarlyWarning, Notification, Final, Users}
+// Stages lists every stage a case can have.
+var Stages = []string{EarlyWarning, Notification, Final, Users, Intermediate}
+
+// Skippable lists the reports that need not be sent when "the relevant information has already been provided"
+// (Art. 14(2)(b), (c), (4)(b), (c)).
+var Skippable = []string{Notification, Final}
 
 // Case is the content of report.yaml.
 type Case struct {
@@ -61,9 +66,15 @@ type Case struct {
 	// is due 14 days later.
 	FixAvailable *time.Time `yaml:"fix_available,omitempty"`
 
+	// IntermediateDue is set when the CSIRT asked for an intermediate report (Art. 14(6)): by when.
+	IntermediateDue *time.Time `yaml:"intermediate_due,omitempty"`
+
 	// Submitted records when each stage was sent (reports on the platform; users: the notice to users).
 	Submitted map[string]time.Time `yaml:"submitted,omitempty"`
-	Notes     string               `yaml:"notes,omitempty"`
+	// Skipped gives the reason for a report that was not sent because its information had already been provided. The
+	// stage is in Submitted too, with the time this was decided.
+	Skipped map[string]string `yaml:"skipped,omitempty"`
+	Notes   string            `yaml:"notes,omitempty"`
 }
 
 // Header is written at the top of report.yaml.
@@ -109,6 +120,23 @@ func (c Case) Validate() error {
 			}
 		}
 	}
+	if c.IntermediateDue != nil && !c.Aware.IsZero() && c.IntermediateDue.Before(c.Aware) {
+		errs = append(errs, errors.New("intermediate_due is before aware"))
+	}
+	if _, ok := c.Submitted[Intermediate]; ok && c.IntermediateDue == nil {
+		errs = append(errs, errors.New("submitted: intermediate is recorded, but no CSIRT request (intermediate_due)"))
+	}
+	for stage, why := range c.Skipped {
+		switch {
+		case !contains(Skippable, stage):
+			errs = append(errs, fmt.Errorf("skipped: %s cannot be skipped (only %s)", stage, strings.Join(Skippable, ", ")))
+		case strings.TrimSpace(why) == "":
+			errs = append(errs, fmt.Errorf("skipped: %s needs a reason", stage))
+		}
+		if _, ok := c.Submitted[stage]; !ok {
+			errs = append(errs, fmt.Errorf("skipped: %s is not in submitted", stage))
+		}
+	}
 	errs = append(errs, c.checkOrder()...)
 	return errors.Join(errs...)
 }
@@ -125,14 +153,19 @@ type Deadline struct {
 	Latest bool
 	// Hint is an extra line for people, or empty.
 	Hint string
+	// UndueDelay is set for the reports the law asks for "without undue delay": Due is only the outer limit.
+	UndueDelay bool
+	// Skipped is the reason when the report was not sent because its information had already been provided.
+	Skipped string
 }
 
-// Deadlines returns the four stages with their due times (CRA Art. 14(2), (4), (8)).
+// Deadlines returns the stages with their due times (CRA Art. 14(2), (4), (6), (8)): early warning, notification,
+// final report, users' notice, and the intermediate report when the CSIRT asked for one.
 func (c Case) Deadlines() []Deadline {
 	notification := c.Aware.Add(72 * time.Hour)
 	ds := []Deadline{
-		{Stage: EarlyWarning, Due: c.Aware.Add(24 * time.Hour), Why: "24 hours after becoming aware"},
-		{Stage: Notification, Due: notification, Why: "72 hours after becoming aware"},
+		{Stage: EarlyWarning, Due: c.Aware.Add(24 * time.Hour), Why: "24 hours after becoming aware", UndueDelay: true},
+		{Stage: Notification, Due: notification, Why: "72 hours after becoming aware", UndueDelay: true},
 	}
 	final := Deadline{Stage: Final}
 	if c.Type == Vulnerability {
@@ -153,6 +186,14 @@ func (c Case) Deadlines() []Deadline {
 		final.Why = "one month after the incident notification was submitted"
 		// One month is counted in the case's zone, so the result is the same on every computer.
 		if n, ok := c.Submitted[Notification]; ok {
+			if ew, sent := c.Submitted[EarlyWarning]; sent && c.Skipped[Notification] != "" {
+				// The notification was not sent: its information was already in the early warning. Count the month
+				// from there; the time the skip was recorded can be later and would move the deadline past the law's.
+				if ew.Before(n) {
+					n = ew
+				}
+				final.Hint = "the notification was skipped, so the month counts from the early warning"
+			}
 			final.Due = AddMonth(c.in(n))
 		} else {
 			// Not recorded yet: the notification is due 72 hours after awareness at the latest.
@@ -160,11 +201,35 @@ func (c Case) Deadlines() []Deadline {
 			final.Hint = "one month after the notification's deadline; it moves earlier when you record the notification"
 		}
 	}
-	ds = append(ds, final, Deadline{Stage: Users, Why: "inform impacted users in a timely manner"})
+	ds = append(ds, final, Deadline{Stage: Users, Why: "inform impacted users in a timely manner, in parallel with the reports"})
+	if c.IntermediateDue != nil {
+		ds = append(ds, Deadline{Stage: Intermediate, Due: *c.IntermediateDue, Why: "the CSIRT asked for an intermediate report"})
+	}
 	for i := range ds {
 		ds[i].Done = c.Submitted[ds[i].Stage]
+		ds[i].Skipped = c.Skipped[ds[i].Stage]
 	}
 	return ds
+}
+
+// Deadline returns one stage's deadline, or false when the case does not have that stage.
+func (c Case) Deadline(stage string) (Deadline, bool) {
+	for _, d := range c.Deadlines() {
+		if d.Stage == stage {
+			return d, true
+		}
+	}
+	return Deadline{}, false
+}
+
+// Closed reports whether every stage of the case is done.
+func (c Case) Closed() bool {
+	for _, d := range c.Deadlines() {
+		if d.Done.IsZero() {
+			return false
+		}
+	}
+	return true
 }
 
 // AddMonth adds one calendar month and keeps the clock time. When the day does not exist in the next month (31 January),
@@ -213,10 +278,12 @@ func (c Case) checkOrder() []error {
 	return errs
 }
 
-// Next returns the first stage not done yet, or false when all are.
+// Next returns the next report to send to the CSIRT: the first open one of early warning, notification, an
+// intermediate report the CSIRT asked for, and the final report; or false when all are done. The users' notice runs in
+// parallel and is not part of this order.
 func (c Case) Next() (Deadline, bool) {
-	for _, d := range c.Deadlines() {
-		if d.Done.IsZero() {
+	for _, stage := range []string{EarlyWarning, Notification, Intermediate, Final} {
+		if d, ok := c.Deadline(stage); ok && d.Done.IsZero() {
 			return d, true
 		}
 	}
@@ -288,7 +355,7 @@ func localTimes(doc *yaml.Node, loc *time.Location) error {
 	for i := 0; i+1 < len(m); i += 2 {
 		key, val := m[i].Value, m[i+1]
 		switch key {
-		case "aware", "fix_available":
+		case "aware", "fix_available", "intermediate_due":
 			if err := fix(key, val); err != nil {
 				return err
 			}

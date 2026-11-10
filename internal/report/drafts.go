@@ -23,6 +23,7 @@ var draftFiles = map[string]string{
 	Notification: "notification.md",
 	Final:        "final.md",
 	Users:        "users.md",
+	Intermediate: "intermediate.md",
 }
 
 // DraftFile returns the file name of a stage's draft.
@@ -100,6 +101,9 @@ func WriteDrafts(dir, id string, c *Case, cfg *config.Config, force bool, loc *t
 	}
 	var written []string
 	for _, stage := range Stages {
+		if stage == Intermediate && c.IntermediateDue == nil {
+			continue // only when the CSIRT asked for one
+		}
 		path := filepath.Join(dir, draftFiles[stage])
 		if _, err := os.Stat(path); err == nil && !force {
 			continue
