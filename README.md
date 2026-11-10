@@ -39,7 +39,7 @@ your repository.
 | `shipward triage` | Your decision on each advisory (VEX), in `vex.yaml`, exported as OpenVEX | [Decisions (VEX)](https://shipward.dev/docs/decisions/) |
 | `shipward init` | Drafts of your security policy, `security.txt`, user information, declaration of conformity and technical documentation | [CRA documents](https://shipward.dev/docs/documents/) |
 | `shipward report` | Drafts of the 24-hour, 72-hour and final reports (CRA Article 14), with their deadlines | [Reports](https://shipward.dev/docs/reports/) |
-| `uses: getshipward/shipward` | All of the above on every push, with the results in the job summary | [GitHub Action](https://shipward.dev/docs/github-action/) |
+| `uses: getshipward/shipward` | `sbom`, `check sbom`, `scan` and `triage export` on every push, with the results in the job summary (not `init`, `licences` or `report`) | [GitHub Action](https://shipward.dev/docs/github-action/) |
 
 ## Quick start
 
@@ -76,6 +76,9 @@ jobs:
         with:
           fail-on: none                       # or open, exploited
 ```
+
+To hear about a missed report deadline, run `shipward report --fail-on overdue` on a schedule, in a private repository
+that holds your report cases ([Report deadlines](https://shipward.dev/docs/github-action/#report-deadlines)).
 
 The full guide: [shipward.dev/docs](https://shipward.dev/docs/).
 
