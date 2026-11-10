@@ -14,16 +14,21 @@ import (
 // NoticeFile is the machine-readable form of the users' notice in a case folder.
 const NoticeFile = "users.csaf.json"
 
+// NoticeDescription is the description a CSAF notice starts with. The case's summary, severity and impact are written
+// for the CSIRT and may say how the flaw works, so they are not copied into a notice for users.
+const NoticeDescription = "TODO: in plain words, what this means for users. Before a fix exists, leave out how the flaw works."
+
 // Notice builds the users' notice of a case as a CSAF 2.0 security advisory (CRA Art. 14(8): "where appropriate in a
-// structured, machine-readable format"). The remediation is what users can do (user_measures); the document is a
-// draft for a person to check before it goes out.
+// structured, machine-readable format"), for the time before a fix: the affected versions, the IDs, and what users
+// can do (user_measures) as a mitigation. It takes nothing from the fields written for the CSIRT (summary, severity,
+// impact). After the fix, the advisory comes from shipward advisory. The document is a draft to check.
 func Notice(id string, c *Case, cfg *config.Config, now time.Time, tool string) ([]byte, error) {
 	if len(c.Versions) == 0 {
 		return nil, errors.New("CSAF needs the affected versions (versions in report.yaml)")
 	}
 	a := advisory.Advisory{ID: id, Title: "Security notice: " + c.Title, Product: cfg.Product.Name,
 		Manufacturer: cfg.Manufacturer.Name, Namespace: cfg.Manufacturer.URL, Affected: c.Versions,
-		Description: c.Summary, Impact: c.Impact, Severity: c.Severity, Date: now, Tool: tool, Unfixed: true,
+		Description: NoticeDescription, Date: now, Tool: tool, Unfixed: true,
 		Remediation: strings.Join(c.UserMeasures, "\n")}
 	// The vulnerability's own IDs name it better than the case folder.
 	for _, x := range c.Advisories {

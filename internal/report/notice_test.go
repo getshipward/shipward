@@ -16,7 +16,8 @@ func TestNotice(t *testing.T) {
 		Manufacturer: config.Manufacturer{Name: "Maker", URL: "https://example.com"}}
 	aware := time.Date(2026, 11, 5, 15, 0, 0, 0, cet)
 	c := &Case{Type: Vulnerability, Title: "Login flaw", Aware: aware, Versions: []string{"1.3.0"},
-		Advisories: []string{"GHSA-aaaa", "CVE-2026-1234"}, Summary: "Attackers take over accounts.",
+		Advisories: []string{"GHSA-aaaa", "CVE-2026-1234"}, Summary: "SUMMARY for the CSIRT.",
+		Severity: "SEVERITY: the token check in /api/login is skipped.", Impact: "IMPACT for the CSIRT.",
 		UserMeasures: []string{"Turn off online play.", "Update when 1.3.2 is out."}}
 	dir := t.TempDir()
 	wrote, err := WriteNotice(dir, "2026-11-05-login-flaw", c, cfg, aware, "shipward test", false)
@@ -34,9 +35,15 @@ func TestNotice(t *testing.T) {
 	}
 	for _, want := range []string{`"category": "csaf_security_advisory"`, `"title": "Security notice: Login flaw"`,
 		`"id": "GHSA-aaaa"`, `"cve": "CVE-2026-1234"`, `"category": "mitigation"`, "Turn off online play.\nUpdate when",
-		"Attackers take over accounts.", `"status": "draft"`} {
+		"leave out how the flaw works", `"status": "draft"`} {
 		if !strings.Contains(string(body), strings.ReplaceAll(want, "\n", `\n`)) {
 			t.Errorf("notice lacks %s:\n%s", want, body)
+		}
+	}
+	// The texts written for the CSIRT stay out of a notice meant for users.
+	for _, secret := range []string{"SUMMARY", "SEVERITY", "IMPACT", "aggregate_severity", `"threats"`} {
+		if strings.Contains(string(body), secret) {
+			t.Errorf("notice has %q:\n%s", secret, body)
 		}
 	}
 	if strings.Contains(string(body), `"fixed"`) {
