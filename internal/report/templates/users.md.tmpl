@@ -7,8 +7,9 @@ Tell the users affected, and where appropriate all users, about the {{ if .IsInc
 - Tell the affected users first, where they will see it: in the product, by e-mail.
 - Before a fix exists, say what users should do, not how the flaw works. Details can help attackers.
 - Publish the full details once the security update is out (Annex I Part II(4)).
-- Where appropriate, also give it in a structured, machine-readable form (Article 14(8)); for a flaw in a component,
-  for example a VEX decision (`shipward triage set`, then `shipward triage export`).
+- Where appropriate, also give it in a structured, machine-readable form (Article 14(8)):
+  `shipward report drafts {{ .ID }} --csaf` writes this notice as a CSAF 2.0 document (`users.csaf.json`, a draft
+  to check). For a flaw in a component, a VEX decision can help too (`shipward triage set`, `shipward triage export`).
 
 Then run `shipward report done {{ .ID }} users`.
 

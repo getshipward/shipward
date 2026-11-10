@@ -27,7 +27,8 @@ const reportUsage = `usage:
                                                      in the future). --skipped: notification or final not sent, its
                                                      information was already provided (Art. 14(2), (4))
   shipward report intermediate CASE --due TIME            the CSIRT asked for an intermediate report by TIME (Art. 14(6))
-  shipward report drafts CASE [--force]                   write the drafts again from report.yaml
+  shipward report drafts CASE [--force] [--csaf]          write the drafts again from report.yaml; --csaf also writes the
+                                                     users' notice as CSAF 2.0 (users.csaf.json)
 
 TIME is RFC 3339 (2026-11-06T14:00:00+01:00) or "2026-11-06 14:00" in local time (the case's zone in report.yaml,
 set by report new); default now. report.yaml reads times without an offset the same way.
@@ -397,6 +398,7 @@ func reportDrafts(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	cfgPath := fs.String("config", config.DefaultFile, "path to shipward.yaml")
 	force := fs.Bool("force", false, "overwrite drafts that exist")
+	withCSAF := fs.Bool("csaf", false, "also write the users' notice as CSAF 2.0 (users.csaf.json)")
 	if err := parse(fs, args); err != nil {
 		return 2
 	}
@@ -420,6 +422,16 @@ func reportDrafts(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "shipward report drafts: %v\n", err)
 		return 1
+	}
+	if *withCSAF {
+		wrote, err := report.WriteNotice(dir, id, c, cfg, time.Now(), "shipward "+version, *force)
+		if err != nil {
+			fmt.Fprintf(stderr, "shipward report drafts: users' notice as CSAF: %v\n", err)
+			return 2
+		}
+		if wrote {
+			written = append(written, filepath.Join(dir, report.NoticeFile))
+		}
 	}
 	if len(written) == 0 {
 		fmt.Fprintln(stdout, "The drafts exist; --force writes them again from report.yaml.")

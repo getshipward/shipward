@@ -142,6 +142,26 @@ func TestCSAF(t *testing.T) {
 	}
 }
 
+func TestCSAFUnfixedNotice(t *testing.T) {
+	a := full()
+	a.FixedIn, a.Remediation, a.Unfixed = "", "Turn off online play until the update.", true
+	body, err := CSAF(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), `"fixed"`) || !strings.Contains(string(body), `"category": "mitigation"`) ||
+		!strings.Contains(string(body), "Turn off online play") {
+		t.Errorf("unfixed notice:\n%s", body)
+	}
+	a.Remediation = ""
+	if _, err := CSAF(a); err == nil || !strings.Contains(err.Error(), "user_measures") {
+		t.Errorf("notice without user measures: %v", err)
+	}
+	if system("2026-11-05-login-flaw") != "manufacturer" || system("ACME-1") != "ACME" {
+		t.Errorf("system = %q, %q", system("2026-11-05-login-flaw"), system("ACME-1"))
+	}
+}
+
 func TestCSAFDistinctVersions(t *testing.T) {
 	a := full()
 	a.Affected = []string{"1.3.0", "1.4.0"}
