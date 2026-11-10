@@ -3,11 +3,13 @@
 package check
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/github/go-spdx/v2/spdxexp"
 )
 
 // Level says how strongly the guideline asks for a field.
@@ -34,8 +36,15 @@ type Result struct {
 // OK reports whether every item meets the rule.
 func (r Result) OK() bool { return r.Passed == r.Total }
 
-// BSIProfile is the guideline version the BSI rules below follow.
-const BSIProfile = "BSI TR-03183-2 v2.1.0"
+// BSIProfile is the guideline version the BSI rules below follow, and BSIDate the date of that version (from its
+// document history).
+const (
+	BSIProfile = "BSI TR-03183-2 v2.1.0"
+	BSIDate    = "2025-08-20"
+)
+
+// BSINewer reminds the reader that BSI may have published a newer version since.
+const BSINewer = "BSI may have published a newer version of TR-03183-2 since: check bsi.bund.de before you rely on this list."
 
 // BSI property names (TR-03183-2 v2.1.0, section 8.2) and their allowed values.
 var bsiProperties = []struct {
@@ -49,24 +58,22 @@ var bsiProperties = []struct {
 }
 
 // BSI applies the data-field rules of BSI TR-03183-2 v2.1.0 (sections 4 and 5.2, CycloneDX mapping in 8.2) to a
-// CycloneDX SBOM. Components of type "file" (file listings, not deliverable parts) are not checked.
+// CycloneDX SBOM. Nested components (a component's own components) are checked too. Components of type "file" (file
+// listings, not deliverable parts) are not checked.
 func BSI(bom *cyclonedx.BOM) []Result {
 	var comps []cyclonedx.Component
 	if bom.Metadata != nil && bom.Metadata.Component != nil {
-		comps = append(comps, *bom.Metadata.Component)
+		comps = flatten(comps, []cyclonedx.Component{*bom.Metadata.Component})
 	}
 	if bom.Components != nil {
-		for _, c := range *bom.Components {
-			if c.Type != cyclonedx.ComponentTypeFile {
-				comps = append(comps, c)
-			}
-		}
+		comps = flatten(comps, *bom.Components)
 	}
 
 	results := []Result{
 		sbomRule("bsi.format", Must, "Format CycloneDX 1.6 or higher", formatProblem(bom)),
 		sbomRule("bsi.sbom.creator", Must, "SBOM creator: email or URL (metadata.manufacturer)", creatorProblem(metadataManufacturer(bom))),
 		sbomRule("bsi.sbom.timestamp", Must, "Timestamp", timestampProblem(bom)),
+		sbomRule("bsi.sbom.no-vulnerabilities", Must, "No vulnerability information in the SBOM (vulnerabilities)", vulnerabilitiesProblem(bom)),
 	}
 
 	deps := dependencyRefs(bom)
@@ -120,6 +127,31 @@ func BSI(bom *cyclonedx.BOM) []Result {
 		return ""
 	}()))
 	return results
+}
+
+// flatten appends the components and, depth first, their nested components, without file listings.
+func flatten(out, list []cyclonedx.Component) []cyclonedx.Component {
+	for _, c := range list {
+		if c.Type == cyclonedx.ComponentTypeFile {
+			continue
+		}
+		nested := c.Components
+		c.Components = nil
+		out = append(out, c)
+		if nested != nil {
+			out = flatten(out, *nested)
+		}
+	}
+	return out
+}
+
+// vulnerabilitiesProblem: TR-03183-2 keeps vulnerability information out of the SBOM (it changes daily; it belongs in
+// a separate document such as VEX).
+func vulnerabilitiesProblem(bom *cyclonedx.BOM) string {
+	if bom.Vulnerabilities != nil && len(*bom.Vulnerabilities) > 0 {
+		return fmt.Sprintf("the SBOM has %d vulnerabilities entries: keep them in a separate document (VEX)", len(*bom.Vulnerabilities))
+	}
+	return ""
 }
 
 type componentRule struct {
@@ -220,13 +252,24 @@ func hasLicence(c cyclonedx.Component, ack cyclonedx.LicenseAcknowledgement) boo
 	}
 	for _, l := range *c.Licenses {
 		switch {
-		case l.Expression != "" && l.Acknowledgement != nil && *l.Acknowledgement == ack:
+		case l.Expression != "" && l.Acknowledgement != nil && *l.Acknowledgement == ack && validSPDX(l.Expression):
 			return true
-		case l.License != nil && l.License.ID != "" && l.License.Acknowledgement == ack:
+		case l.License != nil && l.License.ID != "" && l.License.Acknowledgement == ack && validSPDX(l.License.ID):
 			return true
 		}
 	}
 	return false
+}
+
+// validSPDX reports whether s is an SPDX licence expression (TR-03183-2 asks for SPDX identifiers; LicenseRef-... is
+// SPDX's way to name any other licence).
+func validSPDX(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	ok, _ := spdxexp.ValidateLicenses([]string{s})
+	return ok
 }
 
 func hasSHA512(c cyclonedx.Component) bool {
@@ -238,12 +281,21 @@ func hasSHA512(c cyclonedx.Component) bool {
 			continue
 		}
 		for _, h := range *ref.Hashes {
-			if h.Algorithm == cyclonedx.HashAlgoSHA512 && h.Value != "" {
+			if h.Algorithm == cyclonedx.HashAlgoSHA512 && validSHA512(h.Value) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// validSHA512 reports whether s is a SHA-512 in hex: 128 hex digits.
+func validSHA512(s string) bool {
+	if len(s) != 128 {
+		return false
+	}
+	_, err := hex.DecodeString(s)
+	return err == nil
 }
 
 func hasExternalRef(c cyclonedx.Component, typ cyclonedx.ExternalReferenceType) bool {

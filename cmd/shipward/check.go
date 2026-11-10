@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -70,21 +73,52 @@ func runCheck(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// readBOM reads a CycloneDX JSON SBOM. Other formats get an error that names what the file looks like.
 func readBOM(path string) (*cyclonedx.BOM, error) {
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	var bom cyclonedx.BOM
-	if err := cyclonedx.NewBOMDecoder(f, cyclonedx.BOMFileFormatJSON).Decode(&bom); err != nil {
+	if err := sniffBOM(data); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	var bom cyclonedx.BOM
+	if err := cyclonedx.NewBOMDecoder(bytes.NewReader(data), cyclonedx.BOMFileFormatJSON).Decode(&bom); err != nil {
+		return nil, fmt.Errorf("%s: not a valid CycloneDX JSON SBOM: %w", path, err)
 	}
 	return &bom, nil
 }
 
+// sniffBOM says what a file is when it is not CycloneDX JSON: shipward reads only that format.
+func sniffBOM(data []byte) error {
+	const want = "shipward reads CycloneDX JSON (shipward sbom writes it)"
+	trimmed := bytes.TrimSpace(bytes.TrimPrefix(data, []byte("\xef\xbb\xbf")))
+	switch {
+	case len(trimmed) == 0:
+		return errors.New("the file is empty; " + want)
+	case trimmed[0] == '<':
+		return errors.New("this looks like XML (CycloneDX XML or SPDX RDF); " + want)
+	case trimmed[0] != '{':
+		return errors.New("this is not JSON (SPDX tag-value?); " + want)
+	}
+	var head struct {
+		BOMFormat   string `json:"bomFormat"`
+		SPDXVersion string `json:"spdxVersion"`
+	}
+	if err := json.Unmarshal(trimmed, &head); err != nil {
+		return fmt.Errorf("not valid JSON (%s): %w", want, err)
+	}
+	switch {
+	case head.SPDXVersion != "":
+		return fmt.Errorf("this is an SPDX SBOM (%s); %s", head.SPDXVersion, want)
+	case head.BOMFormat != "CycloneDX":
+		return errors.New(`no "bomFormat": "CycloneDX"; ` + want)
+	}
+	return nil
+}
+
 func printResults(w io.Writer, path string, results []check.Result, limit int) {
-	fmt.Fprintf(w, "%s: %s\n\n", check.BSIProfile, path)
+	fmt.Fprintf(w, "%s (%s): %s\n\n", check.BSIProfile, check.BSIDate, path)
 	var mustFailed, gaps int
 	for _, r := range results {
 		status := "ok"
@@ -115,6 +149,7 @@ func printResults(w io.Writer, path string, results []check.Result, limit int) {
 		fmt.Fprintf(w, "%d required rule(s) not met, %d rule(s) for information that exists have gaps.\n", mustFailed, gaps)
 	}
 	fmt.Fprintln(w, "This lists missing fields. It is not a certification and not legal advice.")
+	fmt.Fprintln(w, check.BSINewer)
 }
 
 // appendSummary adds a Markdown table of the rules to a job summary.
@@ -123,7 +158,7 @@ func appendSummary(file, path string, results []check.Result) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(f, "### SBOM fields (%s)\n\n| Level | Field | Status |\n|---|---|---|\n", check.BSIProfile)
+	fmt.Fprintf(f, "### SBOM fields (%s, %s)\n\n| Level | Field | Status |\n|---|---|---|\n", check.BSIProfile, check.BSIDate)
 	for _, r := range results {
 		status := "ok"
 		if !r.OK() {
@@ -134,7 +169,7 @@ func appendSummary(file, path string, results []check.Result) error {
 		}
 		fmt.Fprintf(f, "| %s | %s | %s |\n", r.Level, md(r.Title), status)
 	}
-	fmt.Fprintln(f, "\nThis lists missing fields. It is not a certification and not legal advice.")
+	fmt.Fprintln(f, "\nThis lists missing fields. It is not a certification and not legal advice. "+check.BSINewer)
 	fmt.Fprintln(f)
 	return f.Close()
 }

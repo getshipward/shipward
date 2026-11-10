@@ -1,6 +1,7 @@
 package sbom
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,15 +15,24 @@ func TestLoadLicences(t *testing.T) {
 		t.Fatalf("missing file = %v, %v", got, err)
 	}
 	path := filepath.Join(t.TempDir(), "licences.yaml")
-	data := "- component: pkg:npm/a@1.0.0\n- component: pkg:npm/b\n  concluded: MIT\n- concluded: MIT\n"
+	data := "- component: pkg:npm/a@1.0.0\n- component: pkg:npm/b\n  concluded: MIT\n- concluded: MIT\n" +
+		"- component: pkg:npm/c@1.0.0\n  concluded: All rights reserved\n- component: pkg:npm/d@1.0.0\n  concluded: LicenseRef-x-own OR MIT\n"
 	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := LoadLicences(path)
-	for _, want := range []string{"pkg:npm/a@1.0.0: concluded is required", "pkg:npm/b: an entry for every version needs the declared licence", "entry 2: component is required"} {
+	for _, want := range []string{"pkg:npm/a@1.0.0: concluded is required", "pkg:npm/b: an entry for every version needs the declared licence",
+		"entry 2: component is required", `pkg:npm/c@1.0.0: concluded "All rights reserved" is not an SPDX licence expression`} {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("error %v does not contain %q", err, want)
 		}
+	}
+	if strings.Contains(err.Error(), "pkg:npm/d@1.0.0") {
+		t.Errorf("LicenseRef expression refused: %v", err)
+	}
+	if _, err := Generate(context.Background(), Options{Path: t.TempDir(), ProductLicence: "Proprietary"}); err == nil ||
+		!strings.Contains(err.Error(), `product.licence "Proprietary" is not an SPDX licence expression`) {
+		t.Errorf("Generate with a non-SPDX product licence: %v", err)
 	}
 }
 

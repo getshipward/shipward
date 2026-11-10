@@ -45,6 +45,8 @@ func LoadLicences(path string) ([]LicenceConfirmation, error) {
 			errs = append(errs, fmt.Errorf("%s: entry %d: component is required", path, i))
 		case e.Concluded == "":
 			errs = append(errs, fmt.Errorf("%s: %s: concluded is required", path, e.Component))
+		case !ValidLicence(e.Concluded):
+			errs = append(errs, fmt.Errorf("%s: %s: concluded %q is not an SPDX licence expression (an SPDX ID such as MIT, an expression such as \"MIT OR Apache-2.0\", or LicenseRef-...)", path, e.Component, e.Concluded))
 		case !hasVersion(e.Component) && e.Declared == "":
 			errs = append(errs, fmt.Errorf("%s: %s: an entry for every version needs the declared licence it was checked against", path, e.Component))
 		}
@@ -185,6 +187,17 @@ func licenceChoice(expr string, ack cyclonedx.LicenseAcknowledgement) cyclonedx.
 		return cyclonedx.LicenseChoice{License: &cyclonedx.License{ID: expr, Acknowledgement: ack}}
 	}
 	return cyclonedx.LicenseChoice{Expression: expr, Acknowledgement: &ack}
+}
+
+// ValidLicence reports whether s is an SPDX licence expression: IDs from the SPDX licence list, LicenseRef-...
+// (and DocumentRef-...:LicenseRef-...), combined with AND, OR, WITH and brackets. TR-03183-2 asks for SPDX.
+func ValidLicence(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	ok, _ := spdxexp.ValidateLicenses([]string{s})
+	return ok
 }
 
 // isPlainSPDXID reports whether s is one ID from the SPDX licence list (not an expression, not a LicenseRef).
