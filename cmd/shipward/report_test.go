@@ -193,7 +193,7 @@ func TestReportWorkflow(t *testing.T) {
 	}
 	out.Reset()
 	reportList([]string{"--config", cfg}, &out, &errOut, now)
-	for _, want := range []string{"notification   not sent (already provided in the early warning), recorded", "intermediate   sent", "final          at the latest"} {
+	for _, want := range []string{"notification   not sent (already provided in the early warning), recorded", "intermediate   sent", "final          at the latest", "the month counts from the early warning"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("list lacks %q:\n%s", want, out.String())
 		}

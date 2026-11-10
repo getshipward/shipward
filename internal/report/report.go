@@ -186,6 +186,14 @@ func (c Case) Deadlines() []Deadline {
 		final.Why = "one month after the incident notification was submitted"
 		// One month is counted in the case's zone, so the result is the same on every computer.
 		if n, ok := c.Submitted[Notification]; ok {
+			if ew, sent := c.Submitted[EarlyWarning]; sent && c.Skipped[Notification] != "" {
+				// The notification was not sent: its information was already in the early warning. Count the month
+				// from there; the time the skip was recorded can be later and would move the deadline past the law's.
+				if ew.Before(n) {
+					n = ew
+				}
+				final.Hint = "the notification was skipped, so the month counts from the early warning"
+			}
 			final.Due = AddMonth(c.in(n))
 		} else {
 			// Not recorded yet: the notification is due 72 hours after awareness at the latest.

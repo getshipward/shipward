@@ -166,6 +166,17 @@ func TestIntermediateSkippedAndNext(t *testing.T) {
 	if err := c.Validate(); err != nil {
 		t.Errorf("skipped notification: %v", err)
 	}
+	// A skip recorded late does not move the final report: the month counts from the early warning.
+	inc := Case{Type: Incident, Title: "x", Aware: time.Date(2026, 11, 1, 10, 0, 0, 0, cet),
+		Submitted: map[string]time.Time{EarlyWarning: time.Date(2026, 11, 1, 12, 0, 0, 0, cet), Notification: time.Date(2026, 11, 11, 9, 0, 0, 0, cet)},
+		Skipped:   map[string]string{Notification: "already provided in the early warning"}}
+	if d, _ := inc.Deadline(Final); !d.Due.Equal(time.Date(2026, 12, 1, 12, 0, 0, 0, cet)) || d.Hint == "" {
+		t.Errorf("final after a skipped notification = %+v, want 1 Dec 12:00 (a month after the early warning)", d)
+	}
+	delete(inc.Skipped, Notification)
+	if d, _ := inc.Deadline(Final); !d.Due.Equal(time.Date(2026, 12, 11, 9, 0, 0, 0, cet)) || d.Hint != "" {
+		t.Errorf("final after a sent notification = %+v", d)
+	}
 	if d, _ := c.Deadline(Notification); d.Skipped == "" || d.Done.IsZero() {
 		t.Errorf("skipped notification = %+v", d)
 	}
@@ -204,7 +215,8 @@ func TestIntermediateDraft(t *testing.T) {
 		}
 	}
 	note, _ := os.ReadFile(filepath.Join(dir, "notification.md"))
-	if !strings.Contains(string(note), `--skipped "already provided in the early warning"`) {
+	if !strings.Contains(string(note), `--skipped "already provided in the early warning"`) ||
+		!strings.Contains(string(note), "The final report is then due one month after the early warning.") {
 		t.Errorf("notification:\n%s", note)
 	}
 }

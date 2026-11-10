@@ -5,6 +5,7 @@
 Submit it on ENISA's single reporting platform, to {{ or .CSIRT "TODO: your CSIRT coordinator" }}. Then run
 `shipward report done {{ .ID }} notification`. If the early warning already gave all of this, you need not send it
 again: run `shipward report done {{ .ID }} notification --skipped "already provided in the early warning"`.
+{{- if .IsIncident }} The final report is then due one month after the early warning.{{ end }}
 
 ## General information about the product
 
