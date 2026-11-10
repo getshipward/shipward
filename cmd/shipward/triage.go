@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -25,6 +26,9 @@ const triageUsage = `usage:
 
 statuses: not_affected (needs --justification or --impact), affected (needs --action), fixed (record --fixed-in and
   --advisory once the advisory is published), under_investigation
+flags of set: --by WHO (recommended), --date (YYYY-MM-DD or RFC 3339), --all-versions;
+  --upstream-reported DATE --upstream-link URL --upstream-fix-shared[=false]: what you told the component's maintainer
+  (CRA Art. 13(6)); each flag changes only its own field, the others are kept
 justifications: ` + "component_not_present, vulnerable_code_not_present, vulnerable_code_not_in_execute_path,\n  vulnerable_code_cannot_be_controlled_by_adversary, inline_mitigations_already_exist\n"
 
 func runTriage(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -77,6 +81,9 @@ func triageList(ctx context.Context, args []string, stdout, stderr io.Writer) in
 			for _, line := range reportHint(f) {
 				fmt.Fprintf(stdout, "    %s\n", line)
 			}
+		}
+		if d := f.Decision; d != nil && d.Status == vex.Affected && d.Upstream == nil {
+			fmt.Fprintln(stdout, "    upstream: not recorded. If the component's maintainer does not know of it yet, tell them (CRA Art. 13(6); see shipward triage help)")
 		}
 		fmt.Fprintf(stdout, "    shipward triage set %s %s --status not_affected --justification ... --impact \"...\"\n\n", f.ID, plainPURL(f.PURL, true))
 	}
@@ -146,10 +153,13 @@ func triageSet(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	justification := fs.String("justification", "", "why it is not_affected (see shipward triage help)")
 	impact := fs.String("impact", "", "not_affected: how the product avoids it, in your words")
 	action := fs.String("action", "", "affected: what users should do")
-	by := fs.String("by", "", "who decided")
+	by := fs.String("by", "", "who decided (a name or role; recommended)")
 	fixedIn := fs.String("fixed-in", "", "fixed: the product version with the security update")
 	advisoryAt := fs.String("advisory", "", "fixed: where the advisory about it is published (URL)")
-	date := fs.String("date", time.Now().Format(time.DateOnly), "date of the decision (YYYY-MM-DD)")
+	date := fs.String("date", time.Now().Format(time.DateOnly), "date or time of the decision (YYYY-MM-DD or RFC 3339)")
+	upReported := fs.String("upstream-reported", "", "when you reported it to the component's maintainer (YYYY-MM-DD; CRA Art. 13(6))")
+	upLink := fs.String("upstream-link", "", "link to that report, issue or advisory")
+	upFix := fs.Bool("upstream-fix-shared", false, "you shared your fix (code or documentation) with the maintainer")
 	allVersions := fs.Bool("all-versions", false, "apply to every version of the component, not only this one")
 	sf := scanFlags{offline: true} // affected: look the advisory up in the cached snapshot, without a request
 	fs.StringVar(&sf.base, "snapshot", snapshot.DefaultURL, "snapshot URL or folder whose cached copy says whether the advisory is known to be exploited")
@@ -170,16 +180,42 @@ func triageSet(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	component := plainPURL(pos[1], !*allVersions)
 	s := vex.Statement{ID: pos[0], Component: component, Status: *status, Justification: *justification,
 		Impact: *impact, Action: *action, By: *by, Date: *date, FixedIn: *fixedIn, Advisory: *advisoryAt}
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
 	path := cfg.Resolve(cfg.VEX.Path)
-	if _, err := vex.Load(path); err != nil {
+	existing, err := vex.Load(path)
+	if err != nil {
 		fmt.Fprintf(stderr, "shipward triage set: fix %s first: %v\n", path, err)
 		return 1
+	}
+	// A new decision on the same advisory and component keeps what was told upstream; the upstream flags given now
+	// change only their own fields.
+	var up vex.Upstream
+	for _, old := range existing {
+		if old.ID == s.ID && old.Component == s.Component && old.Upstream != nil {
+			up = *old.Upstream
+		}
+	}
+	if given["upstream-reported"] {
+		up.Reported = *upReported
+	}
+	if given["upstream-link"] {
+		up.Link = *upLink
+	}
+	if given["upstream-fix-shared"] {
+		up.FixShared = *upFix
+	}
+	if up != (vex.Upstream{}) {
+		s.Upstream = &up
 	}
 	if err := vex.Set(path, s); err != nil {
 		fmt.Fprintf(stderr, "shipward triage set: %v\n", err)
 		return 1
 	}
 	fmt.Fprintf(stdout, "recorded %s for %s on %s in %s\n", s.Status, s.ID, s.Component, path)
+	if s.By == "" {
+		fmt.Fprintln(stderr, "warning: no --by: record who decided (a name or role), so the decision can be traced later")
+	}
 	if s.NeedsAdvisory() {
 		fmt.Fprintln(stdout, "If your product was affected, the CRA asks for an advisory once the update is out (Annex I Part II(4)):")
 		fmt.Fprintf(stdout, "shipward advisory new %s, then record --fixed-in and --advisory here.\n", s.ID)
@@ -187,6 +223,9 @@ func triageSet(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	if s.Status == vex.Affected {
 		sf.cfgPath = *cfgPath
 		affectedHint(ctx, stdout, sf, s)
+	}
+	if s.Status == vex.Affected && s.Upstream == nil {
+		fmt.Fprintln(stdout, upstreamHint)
 	}
 	return 0
 }
@@ -226,6 +265,10 @@ func affectedHint(ctx context.Context, w io.Writer, sf scanFlags, s vex.Statemen
 		"in your product (CRA Art. 3(42), 14(1)). If it is, the 24-hour early warning may already be due:\n  %s\n%s\n",
 		s.ID, why, reportCommand(s.ID+" in "+s.Component, s.ID, s.Component), awareLine)
 }
+
+// upstreamHint follows an affected decision without upstream fields (CRA Art. 13(6)).
+const upstreamHint = "If the component's maintainer does not know of it yet, report it to them, and share your fix if you made one\n" +
+	"(CRA Art. 13(6)). Record it with --upstream-reported DATE --upstream-link URL [--upstream-fix-shared]."
 
 func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("triage export", flag.ContinueOnError)
@@ -283,7 +326,26 @@ func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) 
 	if cfg.Manufacturer.Email != "" {
 		author += " <" + cfg.Manufacturer.Email + ">"
 	}
-	doc, err := vex.Export(author, "shipward "+version, productIRI(bom, cfg), decisions, targets, aliases)
+	target := cfg.Resolve(cfg.VEX.Output)
+	if *out != "" {
+		target = *out
+	}
+	// The document written before, for its version: an unchanged result keeps it, a changed one gets the next.
+	var prev *vex.Document
+	prevPath := target
+	if target == "-" {
+		prevPath = cfg.Resolve(cfg.VEX.Output)
+	}
+	if data, err := os.ReadFile(prevPath); err == nil {
+		var d vex.Document
+		if json.Unmarshal(data, &d) == nil {
+			prev = &d
+		}
+	}
+	if prev == nil && target != "-" {
+		fmt.Fprintf(stderr, "shipward triage export: no earlier document at %s: this one starts at version 1 (keep the file to keep the count)\n", prevPath)
+	}
+	doc, err := vex.Export(author, "shipward "+version, productID(bom, cfg), decisions, targets, aliases, prev, time.Now())
 	if err != nil {
 		fmt.Fprintf(stderr, "shipward triage export: %v\n", err)
 		return 1
@@ -293,10 +355,6 @@ func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) 
 		enc.SetIndent("", "  ")
 		enc.SetEscapeHTML(false)
 		return enc.Encode(doc)
-	}
-	target := cfg.Resolve(cfg.VEX.Output)
-	if *out != "" {
-		target = *out
 	}
 	if target == "-" {
 		if err := write(stdout); err != nil {
@@ -309,27 +367,30 @@ func triageExport(ctx context.Context, args []string, stdout, stderr io.Writer) 
 		fmt.Fprintf(stderr, "shipward triage export: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "wrote %s (%d statements)\n", target, len(doc.Statements))
+	fmt.Fprintf(stdout, "wrote %s (%d statements, version %d)\n", target, len(doc.Statements), doc.Version)
 	return 0
 }
 
-// productIRI names the product in VEX: a BOM-Link to the SBOM's primary component when the SBOM has a serial number
-// (https://cyclonedx.org/capabilities/bomlink/), else the product name and version.
-func productIRI(bom *cyclonedx.BOM, cfg *config.Config) string {
+// productID names the product in VEX with an ID that stays the same on every run for the same release: the SBOM's
+// product purl when it has one, else a generic purl of the product name and version (pkg:generic/<name>@<version>).
+// The SBOM's serial number is not used: it changes with every shipward sbom run.
+func productID(bom *cyclonedx.BOM, cfg *config.Config) string {
+	name, ver := cfg.Product.Name, cfg.Product.Version
 	if bom.Metadata != nil && bom.Metadata.Component != nil {
 		c := bom.Metadata.Component
-		if serial, ok := strings.CutPrefix(bom.SerialNumber, "urn:uuid:"); ok && c.BOMRef != "" {
-			v := bom.Version
-			if v == 0 {
-				v = 1
+		if c.PackageURL != "" {
+			// One document per release: a purl without a version gets the product's.
+			if p, err := packageurl.FromString(c.PackageURL); err == nil && p.Version == "" && c.Version != "" {
+				p.Version = c.Version
+				return p.ToString()
 			}
-			return fmt.Sprintf("urn:cdx:%s/%d#%s", serial, v, c.BOMRef)
+			return c.PackageURL
 		}
-		if c.Version != "" {
-			return c.Name + "@" + c.Version
+		if c.Name != "" {
+			name, ver = c.Name, c.Version
 		}
 	}
-	return cfg.Product.Name
+	return packageurl.NewPackageURL("generic", "", name, ver, nil, "").ToString()
 }
 
 func appendNew(list []string, s string) []string {

@@ -261,7 +261,23 @@ func decisionText(f scan.Finding) string {
 	if d.By != "" {
 		who = d.By + ", " + d.Date
 	}
-	return strings.Join(parts, ": ") + " (" + who + ")"
+	text := strings.Join(parts, ": ") + " (" + who + ")"
+	if u := d.Upstream; u != nil {
+		up := []string{}
+		if u.Reported != "" {
+			up = append(up, "reported "+u.Reported)
+		}
+		if u.Link != "" {
+			up = append(up, u.Link)
+		}
+		if u.FixShared {
+			up = append(up, "fix shared")
+		}
+		if len(up) > 0 {
+			text += "; upstream: " + strings.Join(up, ", ")
+		}
+	}
+	return text
 }
 
 func printText(w io.Writer, rep *scan.Report, all bool) {
