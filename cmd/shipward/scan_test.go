@@ -284,3 +284,60 @@ func TestFactsKEV(t *testing.T) {
 		}
 	}
 }
+
+func TestFailCode(t *testing.T) {
+	open := scan.Finding{ID: "GHSA-1", State: scan.StateOpen}
+	exploited := scan.Finding{ID: "GHSA-2", State: scan.StateOpen, KEV: "2026-11-01"}
+	unchecked := &scan.Report{Components: 2, NotChecked: []string{"godot@4.7.2-stable"}}
+	for _, tc := range []struct {
+		rep  *scan.Report
+		fail map[string]bool
+		want int
+	}{
+		{unchecked, map[string]bool{}, 0},
+		{unchecked, map[string]bool{"unchecked": true}, exitFindings},
+		{unchecked, map[string]bool{"exploited": true}, 0},
+		{&scan.Report{Findings: []scan.Finding{open}}, map[string]bool{"unchecked": true}, 0},
+		{&scan.Report{Findings: []scan.Finding{open}}, map[string]bool{"exploited": true}, 0},
+		{&scan.Report{Findings: []scan.Finding{open}}, map[string]bool{"open": true}, exitFindings},
+		{&scan.Report{Findings: []scan.Finding{exploited}}, map[string]bool{"exploited": true, "unchecked": true}, exitFindings},
+	} {
+		if got := failCode(tc.rep, tc.fail); got != tc.want {
+			t.Errorf("failCode(%+v, %v) = %d, want %d", tc.rep, tc.fail, got, tc.want)
+		}
+	}
+}
+
+func TestFailOnValues(t *testing.T) {
+	for _, v := range []string{"later", "open,maybe", "exploited;unchecked"} {
+		var stdout, stderr bytes.Buffer
+		if code := runScan(context.Background(), []string{"--fail-on", v}, &stdout, &stderr); code != 2 || !strings.Contains(stderr.String(), "unknown --fail-on") {
+			t.Errorf("--fail-on %q: exit %d, %s", v, code, stderr.String())
+		}
+	}
+}
+
+func TestUncheckedInFirstLine(t *testing.T) {
+	rep := &scan.Report{SBOM: "sbom.json", Snapshot: time.Date(2026, 11, 10, 6, 0, 0, 0, time.UTC), Components: 3, Checked: 2,
+		NotChecked: []string{"godot@4.7.2-stable"}, Findings: []scan.Finding{}}
+	var text, summary bytes.Buffer
+	printText(&text, rep, false)
+	printMarkdown(&summary, rep)
+	first, _, _ := strings.Cut(text.String(), "\n")
+	if !strings.Contains(first, "; 1 of 3 components not checked (no package URL of a supported ecosystem)") {
+		t.Errorf("first line = %q", first)
+	}
+	if !strings.Contains(text.String(), "no package URL of crates.io (cargo), Go (golang), Maven, npm, NuGet, Packagist (composer), PyPI, RubyGems (gem)): godot@4.7.2-stable") {
+		t.Errorf("text lacks the ecosystems and the name:\n%s", text.String())
+	}
+	if !strings.Contains(summary.String(), "1 of 3 components **not checked**") || !strings.Contains(summary.String(), "godot@4.7.2-stable") {
+		t.Errorf("summary:\n%s", summary.String())
+	}
+
+	rep.NotChecked, rep.Checked = nil, 3
+	text.Reset()
+	printText(&text, rep, false)
+	if strings.Contains(text.String(), "not checked") {
+		t.Errorf("all checked, but:\n%s", text.String())
+	}
+}

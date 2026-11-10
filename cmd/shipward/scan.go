@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/getshipward/shipward/internal/config"
+	"github.com/getshipward/shipward/internal/osv"
 	"github.com/getshipward/shipward/internal/scan"
 	"github.com/getshipward/shipward/internal/snapshot"
 	"github.com/getshipward/shipward/internal/vex"
@@ -70,7 +71,7 @@ func runScan(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	sf.register(fs)
 	format := fs.String("format", "text", "output: text, json or markdown")
 	summary := fs.String("summary", "", `also append a Markdown summary to this file (in GitHub Actions: "$GITHUB_STEP_SUMMARY")`)
-	failOn := fs.String("fail-on", "none", "exit 3 when: none, open (an advisory without a final decision) or exploited (such an advisory is known to be exploited)")
+	failOn := fs.String("fail-on", "none", "exit 3 when: none, open (an advisory without a final decision), exploited (such an advisory is known to be exploited), unchecked (a component could not be checked); several with commas")
 	all := fs.Bool("all", false, "name every component that could not be checked")
 	var maxAge time.Duration
 	fs.Func("max-age", "exit 1 when the snapshot or a feed copy is older than this (e.g. 36h, 3d); default no limit", func(v string) error {
@@ -87,11 +88,16 @@ func runScan(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "shipward scan: unknown format %q (text, json, markdown)\n", *format)
 		return 2
 	}
-	switch *failOn {
-	case "none", "open", "exploited":
-	default:
-		fmt.Fprintf(stderr, "shipward scan: unknown --fail-on %q (none, open, exploited)\n", *failOn)
-		return 2
+	fail := map[string]bool{}
+	for _, v := range strings.Split(*failOn, ",") {
+		switch v = strings.TrimSpace(v); v {
+		case "none":
+		case "open", "exploited", "unchecked":
+			fail[v] = true
+		default:
+			fmt.Fprintf(stderr, "shipward scan: unknown --fail-on %q (none, open, exploited, unchecked)\n", v)
+			return 2
+		}
 	}
 
 	rep, _, err := sf.run(ctx, fs.Arg(0))
@@ -130,13 +136,21 @@ func runScan(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
-	if missing := rep.MissingExploitedFeeds(); *failOn == "exploited" && len(missing) > 0 {
+	if missing := rep.MissingExploitedFeeds(); fail["exploited"] && len(missing) > 0 {
 		fmt.Fprintf(stderr, "shipward scan: --fail-on exploited cannot be checked: %s could not be loaded (see the warnings)\n",
 			strings.Join(missing, " and "))
 		return 1
 	}
+	return failCode(rep, fail)
+}
+
+// failCode is exitFindings when the scan matches a --fail-on condition, else 0.
+func failCode(rep *scan.Report, fail map[string]bool) int {
+	if fail["unchecked"] && len(rep.NotChecked) > 0 {
+		return exitFindings
+	}
 	for _, f := range rep.Findings {
-		if f.NeedsWork() && (*failOn == "open" || (*failOn == "exploited" && f.Exploited())) {
+		if f.NeedsWork() && (fail["open"] || (fail["exploited"] && f.Exploited())) {
 			return exitFindings
 		}
 	}
@@ -281,8 +295,8 @@ func decisionText(f scan.Finding) string {
 }
 
 func printText(w io.Writer, rep *scan.Report, all bool) {
-	fmt.Fprintf(w, "%s: %d components checked against the vulnerability snapshot of %s (%s old)\n", rep.SBOM, rep.Checked,
-		rep.Snapshot.Format("2006-01-02 15:04 MST"), scan.Age(time.Since(rep.Snapshot)))
+	fmt.Fprintf(w, "%s: %d components checked against the vulnerability snapshot of %s (%s old)%s\n", rep.SBOM, rep.Checked,
+		rep.Snapshot.Format("2006-01-02 15:04 MST"), scan.Age(time.Since(rep.Snapshot)), uncheckedNote(rep))
 	for _, warn := range rep.Warnings {
 		fmt.Fprintf(w, "warning: %s\n", warn)
 	}
@@ -318,7 +332,8 @@ func printText(w io.Writer, rep *scan.Report, all bool) {
 		fmt.Fprintf(w, "%d decision(s) in vex.yaml match no advisory now (shipward triage lists them).\n", len(rep.Unused))
 	}
 	if len(rep.NotChecked) > 0 {
-		fmt.Fprintf(w, "Not checked (no package URL of a known ecosystem): %s\n", listNames(rep.NotChecked, all))
+		fmt.Fprintf(w, "Not checked, so no advisory is shown for them (no package URL of %s): %s\n",
+			strings.Join(osv.EcosystemNames(), ", "), listNames(rep.NotChecked, all))
 	}
 	fmt.Fprintln(w, "An advisory that names a version does not prove the product is affected: a person decides that.")
 	fmt.Fprintf(w, "Exploitation data: %s.\n", feedText(rep))
@@ -330,8 +345,9 @@ func printText(w io.Writer, rep *scan.Report, all bool) {
 func printMarkdown(w io.Writer, rep *scan.Report) {
 	open, closed := counts(rep)
 	fmt.Fprintf(w, "### Vulnerability scan\n\n")
-	fmt.Fprintf(w, "%d components checked against the snapshot of %s (%s old). ", rep.Checked,
-		rep.Snapshot.Format("2006-01-02 15:04 MST"), scan.Age(time.Since(rep.Snapshot)))
+	fmt.Fprintf(w, "%d components checked against the snapshot of %s (%s old)%s. ", rep.Checked,
+		rep.Snapshot.Format("2006-01-02 15:04 MST"), scan.Age(time.Since(rep.Snapshot)),
+		strings.Replace(uncheckedNote(rep), "not checked", "**not checked**", 1))
 	if open+closed == 0 {
 		fmt.Fprintf(w, "No advisory names these component versions.\n\n")
 	} else {
@@ -379,10 +395,19 @@ func printMarkdown(w io.Writer, rep *scan.Report) {
 		fmt.Fprintf(w, "%d decision(s) in vex.yaml match no advisory now.\n\n", len(rep.Unused))
 	}
 	if len(rep.NotChecked) > 0 {
-		fmt.Fprintf(w, "Not checked (no package URL of a known ecosystem): %d components.\n\n", len(rep.NotChecked))
+		fmt.Fprintf(w, "Not checked, so no advisory is shown for them (no package URL of %s): %s.\n\n",
+			md(strings.Join(osv.EcosystemNames(), ", ")), md(listNames(rep.NotChecked, false)))
 	}
 	fmt.Fprintf(w, "An advisory that names a version does not prove the product is affected: a person decides that. "+
 		"Exploitation data: %s. Data: %s.\n\n", md(feedText(rep)), md(sourceNames(rep.Sources)))
+}
+
+// uncheckedNote is "; N of M components not checked" when some components could not be matched, for the first line.
+func uncheckedNote(rep *scan.Report) string {
+	if len(rep.NotChecked) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("; %d of %d components not checked (no package URL of a supported ecosystem)", len(rep.NotChecked), rep.Components)
 }
 
 // md makes text safe inside a Markdown table cell.
