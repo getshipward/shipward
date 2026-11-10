@@ -23,7 +23,8 @@ const triageUsage = `usage:
   shipward triage set ID PURL --status S [flags] record a decision in vex.yaml
   shipward triage export [-o file] [flags] [sbom] write vex.yaml as OpenVEX (default sbom/vex.openvex.json)
 
-statuses: not_affected (needs --justification or --impact), affected (needs --action), fixed, under_investigation
+statuses: not_affected (needs --justification or --impact), affected (needs --action), fixed (record --fixed-in and
+  --advisory once the advisory is published), under_investigation
 justifications: ` + "component_not_present, vulnerable_code_not_present, vulnerable_code_not_in_execute_path,\n  vulnerable_code_cannot_be_controlled_by_adversary, inline_mitigations_already_exist\n"
 
 func runTriage(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -79,6 +80,9 @@ func triageList(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	} else {
 		fmt.Fprintf(stdout, "Advisories that need a decision or work: %d. Decide each one (see shipward triage help), then commit %s.\n", n, vexPath)
 	}
+	if cfg != nil {
+		printNeedsAdvisory(stdout, cfg)
+	}
 	if len(rep.Unused) > 0 {
 		fmt.Fprintf(stdout, "\nThese decisions in %s match no advisory of this SBOM (the component was updated or removed). Remove them when you no longer need them:\n", vexPath)
 		for _, s := range rep.Unused {
@@ -86,6 +90,33 @@ func triageList(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		}
 	}
 	return 0
+}
+
+// printNeedsAdvisory lists fixed decisions that do not record the update and the published advisory yet. They are
+// final for VEX, but the CRA asks for an advisory about every fixed vulnerability (Annex I Part II(4), (8)).
+func printNeedsAdvisory(w io.Writer, cfg *config.Config) {
+	decisions, err := vex.Load(cfg.Resolve(cfg.VEX.Path))
+	if err != nil {
+		return // triage list loaded the same file already
+	}
+	var open []vex.Statement
+	for _, s := range decisions {
+		if s.NeedsAdvisory() {
+			open = append(open, s)
+		}
+	}
+	if len(open) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "\nFixed, but the update or the advisory is not recorded yet (CRA Annex I Part II(4), (8)): %d.\n", len(open))
+	fmt.Fprintln(w, "If your product was affected, publish an advisory with the update (shipward advisory new ID), then record it:")
+	for _, s := range open {
+		fixed := s.FixedIn
+		if fixed == "" {
+			fixed = "VERSION"
+		}
+		fmt.Fprintf(w, "  shipward triage set %s %s --status fixed --fixed-in %s --advisory URL\n", s.ID, s.Component, fixed)
+	}
 }
 
 // plainPURL drops qualifiers and subpath (and the version, for every version), the form vex.yaml uses. The name keeps
@@ -111,6 +142,8 @@ func triageSet(args []string, stdout, stderr io.Writer) int {
 	impact := fs.String("impact", "", "not_affected: how the product avoids it, in your words")
 	action := fs.String("action", "", "affected: what users should do")
 	by := fs.String("by", "", "who decided")
+	fixedIn := fs.String("fixed-in", "", "fixed: the product version with the security update")
+	advisoryAt := fs.String("advisory", "", "fixed: where the advisory about it is published (URL)")
 	date := fs.String("date", time.Now().Format(time.DateOnly), "date of the decision (YYYY-MM-DD)")
 	allVersions := fs.Bool("all-versions", false, "apply to every version of the component, not only this one")
 	if err := parse(fs, args); err != nil {
@@ -128,7 +161,7 @@ func triageSet(args []string, stdout, stderr io.Writer) int {
 	}
 	component := plainPURL(pos[1], !*allVersions)
 	s := vex.Statement{ID: pos[0], Component: component, Status: *status, Justification: *justification,
-		Impact: *impact, Action: *action, By: *by, Date: *date}
+		Impact: *impact, Action: *action, By: *by, Date: *date, FixedIn: *fixedIn, Advisory: *advisoryAt}
 	path := cfg.Resolve(cfg.VEX.Path)
 	if _, err := vex.Load(path); err != nil {
 		fmt.Fprintf(stderr, "shipward triage set: fix %s first: %v\n", path, err)
@@ -139,6 +172,10 @@ func triageSet(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintf(stdout, "recorded %s for %s on %s in %s\n", s.Status, s.ID, s.Component, path)
+	if s.NeedsAdvisory() {
+		fmt.Fprintln(stdout, "If your product was affected, the CRA asks for an advisory once the update is out (Annex I Part II(4)):")
+		fmt.Fprintf(stdout, "shipward advisory new %s, then record --fixed-in and --advisory here.\n", s.ID)
+	}
 	return 0
 }
 

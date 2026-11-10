@@ -22,6 +22,7 @@ func TestValidate(t *testing.T) {
 		{Statement{ID: "GHSA-1", Component: "pkg:npm/a", Status: Fixed, Justification: "component_not_present", Date: "2026-11-06"}, "only for not_affected"},
 		{Statement{ID: "GHSA-1", Component: "left-pad", Status: Fixed, Date: "2026-11-06"}, "not a purl"},
 		{Statement{ID: "GHSA-1", Component: "pkg:npm/a", Status: Fixed, Date: "6.11.2026"}, "YYYY-MM-DD"},
+		{Statement{ID: "GHSA-1", Component: "pkg:npm/a", Status: Affected, Action: "update", FixedIn: "1.2", Date: "2026-11-06"}, "only for fixed"},
 	}
 	for _, b := range bad {
 		if err := b.s.Validate(); err == nil || !strings.Contains(err.Error(), b.want) {
@@ -100,5 +101,23 @@ func TestExport(t *testing.T) {
 	again, _ := Export("Maker", "shipward test", "urn:cdx:x/1#product", list, targets, map[string][]string{"GHSA-1": {"CVE-1"}})
 	if again.ID != doc.ID {
 		t.Error("the same input gave another @id")
+	}
+}
+
+func TestNeedsAdvisory(t *testing.T) {
+	s := Statement{ID: "GHSA-1", Component: "pkg:npm/a", Status: Fixed, Date: "2026-11-06"}
+	if !s.NeedsAdvisory() {
+		t.Error("bare fixed needs no advisory")
+	}
+	s.FixedIn = "1.4.0"
+	if !s.NeedsAdvisory() {
+		t.Error("fixed without an advisory needs none")
+	}
+	s.Advisory = "https://example.com/advisories/GHSA-1"
+	if s.NeedsAdvisory() || s.Validate() != nil {
+		t.Errorf("recorded fixed: needs %v, %v", s.NeedsAdvisory(), s.Validate())
+	}
+	if (Statement{Status: NotAffected}).NeedsAdvisory() {
+		t.Error("not_affected needs an advisory")
 	}
 }

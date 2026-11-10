@@ -39,7 +39,8 @@ var Justifications = []string{
 // Header is written at the top of a new vex.yaml.
 const Header = `# Decisions about advisories that name a component of this product (VEX). shipward scan shows them next to each
 # advisory; shipward triage export writes them as OpenVEX. Add or change entries with shipward triage set, or by hand.
-# status: not_affected (needs justification or impact), affected (needs action), fixed, under_investigation.
+# status: not_affected (needs justification or impact), affected (needs action), fixed (then record fixed_in and
+# advisory: the version with the update and where its advisory is published), under_investigation.
 # component: a purl with @version, or without it for every version.
 `
 
@@ -53,6 +54,16 @@ type Statement struct {
 	Action        string `yaml:"action,omitempty"` // what users should do (affected)
 	By            string `yaml:"by,omitempty"`
 	Date          string `yaml:"date"` // YYYY-MM-DD
+	// FixedIn and Advisory are for fixed: the product version that carries the security update, and where the advisory
+	// about the fixed vulnerability is published (CRA Annex I Part II(4), (8)). OpenVEX does not need them; the CRA does.
+	FixedIn  string `yaml:"fixed_in,omitempty"`
+	Advisory string `yaml:"advisory,omitempty"`
+}
+
+// NeedsAdvisory reports whether a fixed decision does not record the update and the advisory yet. The OpenVEX decision
+// is final, but the CRA asks to publish an advisory once the security update is available (Annex I Part II(4)).
+func (s Statement) NeedsAdvisory() bool {
+	return s.Status == Fixed && (s.FixedIn == "" || s.Advisory == "")
 }
 
 // Validate checks one statement against the OpenVEX rules.
@@ -82,6 +93,9 @@ func (s Statement) Validate() error {
 	}
 	if s.Status != NotAffected && s.Justification != "" {
 		errs = append(errs, errors.New("a justification is only for not_affected"))
+	}
+	if s.Status != Fixed && (s.FixedIn != "" || s.Advisory != "") {
+		errs = append(errs, errors.New("fixed_in and advisory are only for fixed"))
 	}
 	if _, err := time.Parse(time.DateOnly, s.Date); err != nil {
 		errs = append(errs, fmt.Errorf("date %q is not YYYY-MM-DD", s.Date))
