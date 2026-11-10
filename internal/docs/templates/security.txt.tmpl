@@ -1,6 +1,6 @@
 # {{ .Note }}
 # Publish this file at /.well-known/security.txt on your website (RFC 9116). Renew it before it expires.
-Contact: {{ .Security.Contact }}
+Contact: {{ or .Security.Contact "TODO: a mailto: or https: URI where people report vulnerabilities (`security.contact` or `manufacturer.email` in shipward.yaml)" }}
 Expires: {{ .Expires }}
 {{- if .Security.Policy }}
 Policy: {{ .Security.Policy }}
