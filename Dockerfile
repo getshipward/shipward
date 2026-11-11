@@ -5,7 +5,7 @@
 #   docker build -t shipward-snapshot . && docker run --rm -e SNAPSHOT_SIGNING_KEY=... -v "$PWD/out:/out" shipward-snapshot -out /out
 #
 # Images are pinned by digest; Renovate (.github/renovate.json5) proposes updates.
-FROM golang:1.26.10-trixie@sha256:fd9a91f0ece5664556f4851d06dce5e5b505a71166dffd385a03ba9d200b6983 AS build
+FROM golang:1.27.4-trixie@sha256:b54b2639de8c1bfe538ec5ffc45f29b1932235ac5f6d63c059853646677112d9 AS build
 WORKDIR /src
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local
 COPY go.mod go.sum ./
