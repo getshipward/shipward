@@ -27,6 +27,12 @@
   },
   packageRules: [
     {
+      description: 'Go itself comes with no 3-day wait. After a Go security fix, govulncheck fails CI in every pull request until Go is updated (GO-2026-6859, Nov 2026)',
+      matchDepNames: ['go', 'golang'],
+      matchUpdateTypes: ['minor', 'patch'],
+      minimumReleaseAge: null,
+    },
+    {
       matchManagers: ['gomod'],
       matchUpdateTypes: ['minor', 'patch'],
       matchDepTypes: ['require', 'indirect'],
