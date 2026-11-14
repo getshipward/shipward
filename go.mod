@@ -10,6 +10,7 @@ require (
 	github.com/google/osv-scalibr v0.5.3
 	github.com/minio/minio-go/v7 v7.4.1
 	go.yaml.in/yaml/v3 v3.0.6
+	go.yaml.in/yaml/v4 v4.0.0
 	modernc.org/sqlite v1.62.0
 )
 
