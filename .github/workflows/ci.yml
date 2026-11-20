@@ -1,7 +1,8 @@
 # CI for Shipward: vet, gofmt, actionlint, tests and govulncheck, then the snapshot builder image. Pull requests only
 # build the image; main also pushes it to ghcr.io/getshipward/shipward-snapshot with the tags sha-<commit> and
-# main-<run number> (the newest main-N is the one that runs). A weekly run catches new Go vulnerabilities in code
-# that has not changed. The job "test" is the required check for main. Actions are pinned to commit SHAs on purpose.
+# main-<run number>, then starts the deploy in the deploy repository (the newest main-N is the one that runs). A weekly
+# run catches new Go vulnerabilities in code that has not changed. The job "test" is the required check for main.
+# Actions are pinned to commit SHAs on purpose.
 name: ci
 
 on:
@@ -125,6 +126,36 @@ jobs:
             ${{ env.IMAGE }}:main-${{ github.run_number }}
           cache-from: type=gha
           cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max' || '' }}
+
+      # Tell the deploy repository about the new image: it writes the tag into its manifests and deploys it. The
+      # token needs that repository's owner and name apart.
+      - name: Deploy repository
+        id: deploy-repo
+        if: github.event_name == 'push'
+        env:
+          DEPLOY_REPO: ${{ vars.DEPLOY_REPO }}
+        run: |
+          echo "owner=${DEPLOY_REPO%%/*}" >> "$GITHUB_OUTPUT"
+          echo "name=${DEPLOY_REPO#*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy token
+        id: deploy-token
+        if: github.event_name == 'push'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.DEPLOY_TRIGGER_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_TRIGGER_PRIVATE_KEY }}
+          owner: ${{ steps.deploy-repo.outputs.owner }}
+          repositories: ${{ steps.deploy-repo.outputs.name }}
+
+      - name: Start the deploy
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ steps.deploy-token.outputs.token }}
+          DEPLOY_REPO: ${{ vars.DEPLOY_REPO }}
+          IMAGES: ${{ env.IMAGE }}
+          TAG: main-${{ github.run_number }}
+        run: gh workflow run deploy-bump.yml -R "$DEPLOY_REPO" --ref master -f images="$IMAGES" -f tag="$TAG"
 
       - name: Summary
         if: github.event_name == 'push'
