@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // DefaultFile is the name shipward looks for in the working directory.

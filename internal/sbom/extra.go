@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // ExtraComponent is one entry of components.extra.yaml: a part of the product that no package manager lists, such as

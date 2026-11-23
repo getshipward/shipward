@@ -10,7 +10,7 @@ import (
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 	packageurl "github.com/anchore/packageurl-go"
 	"github.com/github/go-spdx/v2/spdxexp"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // LicenceConfirmation is one entry of licences.yaml: a licence a person checked for a component. shipward sbom writes it

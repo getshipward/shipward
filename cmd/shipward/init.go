@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/getshipward/shipward/internal/config"
 	"github.com/getshipward/shipward/internal/docs"
