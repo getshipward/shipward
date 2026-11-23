@@ -13,7 +13,7 @@ import (
 	"time"
 
 	packageurl "github.com/anchore/packageurl-go"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Statuses (OpenVEX).

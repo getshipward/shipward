@@ -9,7 +9,7 @@ import (
 	"sort"
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/getshipward/shipward/internal/config"
 	"github.com/getshipward/shipward/internal/sbom"
